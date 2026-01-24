@@ -1,0 +1,12 @@
+"""
+Job site scrapers module.
+Each scraper follows a common interface for easy integration.
+"""
+
+from .pge import scrape_pge_jobs, fetch_pge_descriptions_batch
+from .smud import scrape_smud_jobs, fetch_smud_descriptions_batch
+
+__all__ = [
+    'scrape_pge_jobs', 'fetch_pge_descriptions_batch',
+    'scrape_smud_jobs', 'fetch_smud_descriptions_batch',
+]
