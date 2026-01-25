@@ -4,10 +4,18 @@ import sqlite3
 from scrapers.pge import scrape_pge_jobs, fetch_pge_descriptions_batch
 from scrapers.smud import scrape_smud_jobs, fetch_smud_descriptions_batch, scrape_all_smud_jobs
 from scrapers.kaiser import scrape_kaiser_jobs, fetch_kaiser_descriptions_batch, scrape_all_kaiser_jobs
+from scrapers.state_ca import scrape_state_ca_jobs, fetch_state_ca_descriptions_batch, scrape_all_state_ca_jobs
 from database import init_db, save_job, get_new_jobs, update_job_analysis, DB_NAME, reset_failed_analyses, get_jobs_needing_analysis, export_to_excel, generate_job_id
 from ai_analyzer import JobAnalyzer
 from dotenv import load_dotenv
 from config import SEARCH_QUERIES, NOISE_KEYWORDS, ENTRY_LEVEL_INDICATORS, ENABLED_SITES, IGNORE_FIELDS, INTEREST_KEYWORDS
+
+# Import State CA config if available
+try:
+    from config import STATE_CA_LOCATION_ID, STATE_CA_KEYWORDS
+except ImportError:
+    STATE_CA_LOCATION_ID = "418"  # Default: Sacramento County
+    STATE_CA_KEYWORDS = ["IT", "Security", "Analyst", "Systems"]
 
 
 import re
@@ -63,23 +71,26 @@ def select_sites():
     print("  1) PG&E only")
     print("  2) SMUD only")
     print("  3) Kaiser Permanente only")
-    print("  4) All (PG&E + SMUD + Kaiser)")
-    print("  5) Use config.py settings")
+    print("  4) State of California only")
+    print("  5) All sites (PG&E + SMUD + Kaiser + State CA)")
+    print("  6) Use config.py settings")
     
     while True:
-        choice = input("\nEnter choice (1-5): ").strip()
+        choice = input("\nEnter choice (1-6): ").strip()
         if choice == "1":
-            return {"pge": True, "smud": False, "kaiser": False}
+            return {"pge": True, "smud": False, "kaiser": False, "state_ca": False}
         elif choice == "2":
-            return {"pge": False, "smud": True, "kaiser": False}
+            return {"pge": False, "smud": True, "kaiser": False, "state_ca": False}
         elif choice == "3":
-            return {"pge": False, "smud": False, "kaiser": True}
+            return {"pge": False, "smud": False, "kaiser": True, "state_ca": False}
         elif choice == "4":
-            return {"pge": True, "smud": True, "kaiser": True}
+            return {"pge": False, "smud": False, "kaiser": False, "state_ca": True}
         elif choice == "5":
+            return {"pge": True, "smud": True, "kaiser": True, "state_ca": True}
+        elif choice == "6":
             return ENABLED_SITES.copy()
         else:
-            print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
+            print("Invalid choice. Please enter 1, 2, 3, 4, 5, or 6.")
 
 
 async def main():
@@ -116,6 +127,16 @@ async def main():
     if selected_sites.get("kaiser", False):
         print("\n📍 Scraping Kaiser Permanente Jobs (California - Full Dump)...")
         raw_jobs = await scrape_kaiser_jobs(headless=False)
+        all_raw_jobs.extend(raw_jobs)
+    
+    # State of California - scrape multiple keywords with configured location
+    if selected_sites.get("state_ca", False):
+        print(f"\n📍 Scraping State of California Jobs (locid={STATE_CA_LOCATION_ID})...")
+        raw_jobs = await scrape_all_state_ca_jobs(
+            search_queries=STATE_CA_KEYWORDS, 
+            location_id=STATE_CA_LOCATION_ID, 
+            headless=False
+        )
         all_raw_jobs.extend(raw_jobs)
     
     # Deduplicate by link
@@ -169,6 +190,7 @@ async def main():
         pge_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'PG&E']
         smud_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'SMUD']
         kaiser_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Kaiser Permanente']
+        state_ca_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'State of California']
         
         # Fetch PG&E descriptions
         if pge_to_fetch:
@@ -206,6 +228,25 @@ async def main():
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in kaiser_to_fetch:
+                job_id = generate_job_id(job['link'])
+                desc = descriptions.get(job['link'], '')
+                if desc:
+                    c.execute("UPDATE jobs SET description = ? WHERE id = ?", (desc, job_id))
+            conn.commit()
+            conn.close()
+        
+        # Fetch State CA descriptions
+        if state_ca_to_fetch:
+            # State CA also needs rate limiting
+            fetch_limit = 50
+            if len(state_ca_to_fetch) > fetch_limit:
+                print(f"  [State CA] Limiting fetch to first {fetch_limit} jobs to avoid IP block...")
+                state_ca_to_fetch = state_ca_to_fetch[:fetch_limit]
+            
+            descriptions = await fetch_state_ca_descriptions_batch(state_ca_to_fetch, headless=False)
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            for job in state_ca_to_fetch:
                 job_id = generate_job_id(job['link'])
                 desc = descriptions.get(job['link'], '')
                 if desc:

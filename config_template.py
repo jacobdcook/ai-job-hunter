@@ -29,6 +29,7 @@ ENABLED_SITES = {
     "pge": True,       # Pacific Gas & Electric
     "smud": True,      # Sacramento Municipal Utility District
     "kaiser": True,    # Kaiser Permanente
+    "state_ca": True,  # State of California (CalCareers)
 }
 
 # Kaiser Permanente specific URLs (Default: California, US)
@@ -38,6 +39,22 @@ ENABLED_SITES = {
 # 3. Copy the URL path after the domain (e.g., "/search-jobs/Texas%2C%20US/...")
 KAISER_LOCATION_URL = "/search-jobs/California%2C%20US/641/3/6252001-5332921/37x25022/-119x75126/25/2"
 KAISER_KEYWORD_URL_TEMPLATE = "/search-jobs/{keyword}/California%2C%20US/641/1/3/6252001-5332921/37x25022/-119x75126/25/2"
+
+# State of California (CalCareers) configuration
+# Location IDs (common ones):
+#   418 = Sacramento County
+#   382 = Los Angeles County  
+#   417 = San Diego County
+#   "" (empty string) = All locations statewide
+# To find your location ID:
+# 1. Go to https://calcareers.ca.gov/CalHRPublic/Search/JobSearchResults.aspx
+# 2. Use the Location filter and select your county
+# 3. Look at the URL - the "locid" parameter is your location ID
+STATE_CA_LOCATION_ID = "418"  # Default: Sacramento County
+
+# Keywords to search on State CA jobs site
+# These will be searched separately and results combined
+STATE_CA_KEYWORDS = ["IT", "Security", "Analyst", "Systems", "Network", "Cyber"]
 
 # =============================================================================
 # SEARCH QUERIES

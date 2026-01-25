@@ -4,33 +4,38 @@
 
 ### 🔥 HIGH PRIORITY
 
-1. **State of California** (`state_ca`)
+1. **State of California** (`state_ca`) ✅ DONE
    - **URL**: https://www.calcareers.ca.gov/
    - **Why**: Largest employer in CA, TONS of IT/Security roles
-   - **Search**: "Information Technology", "Security", "Analyst", "Associate"
-   - **Location**: Sacramento (many state jobs), Remote options
-   - **Difficulty**: Medium (state job portal, might need to handle pagination)
+   - **Search**: Configurable keywords (default: IT, Security, Analyst, Systems, Network, Cyber)
+   - **Location**: Configurable by location ID (default: 418 = Sacramento County)
+   - **Features**: 
+     - URL-based search with `#kw=keyword&locid=xxx`
+     - ASP.NET pagination handling (clicks "Next" button)
+     - 10+ second delays between requests to avoid blocking
+     - IP block detection with auto-stop
+   - **Config**: Set `STATE_CA_LOCATION_ID` and `STATE_CA_KEYWORDS` in config.py
 
-2. **Kaiser Permanente** (`kaiser`)
+2. **Kaiser Permanente** (`kaiser`) ✅ DONE
    - **URL**: https://www.kaiserpermanentejobs.org/
-   - **Why**: Healthcare IT/security is hot, big Sacramento presence
-   - **Search**: "IT", "Security", "Analyst", "Associate", "Entry"
-   - **Location**: Sacramento, Remote
-   - **Difficulty**: Medium (likely uses standard ATS)
+   - **Status**: Fully implemented with AI pre-filtering and bot protection
+   - **Features**: Full location scrape, 10-second delays, IP block detection
 
-3. **UC Davis** (`ucdavis`)
+3. **UC Davis** (`ucdavis`) ⏳ TODO
    - **URL**: https://careers.ucdavis.edu/
    - **Why**: University IT/security, Davis location, good benefits
    - **Search**: "IT", "Security", "Analyst", "Associate"
    - **Location**: Davis, Sacramento, Remote
    - **Difficulty**: Medium (university job portal)
+   - **Notes**: May use PageUp or similar ATS
 
-4. **Sutter Health** (`sutter`)
+4. **Sutter Health** (`sutter`) ⏳ TODO
    - **URL**: https://www.sutterhealth.org/about/careers
    - **Why**: Healthcare IT/security, Sacramento area
    - **Search**: "IT", "Security", "Analyst"
    - **Location**: Sacramento, Remote
    - **Difficulty**: Medium
+   - **Notes**: Check if they use Workday, Taleo, or custom ATS
 
 ### 📋 MEDIUM PRIORITY
 

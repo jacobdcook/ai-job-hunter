@@ -4,7 +4,7 @@ An AI-powered job search automation tool that scrapes job listings, filters them
 
 ## Features
 
-- **Multi-site scraping**: Search multiple job boards (PG&E, SMUD, Kaiser Permanente)
+- **Multi-site scraping**: Search multiple job boards (PG&E, SMUD, Kaiser Permanente, State of California)
 - **Smart filtering**: Automatically filters out senior/expert roles and irrelevant clinical/medical fields
 - **AI-powered Title Pre-Filtering**: Uses AI to scan hundreds of job titles and identify the relevant ones before fetching full descriptions
 - **AI-powered matching**: Uses Groq AI to score jobs 1-10 based on YOUR specific background
@@ -73,6 +73,8 @@ After running, you'll have:
 | `YOUR_BACKGROUND` | Your education, skills, projects, and target roles |
 | `SEARCH_QUERIES` | Keywords to search for on PG&E/SMUD |
 | `KAISER_LOCATION_URL` | The specific location search URL for Kaiser Permanente |
+| `STATE_CA_LOCATION_ID` | Location ID for State CA (418=Sacramento, 382=LA, 417=San Diego, ""=all) |
+| `STATE_CA_KEYWORDS` | Keywords to search on CalCareers (e.g., IT, Security, Analyst) |
 | `ENTRY_LEVEL_INDICATORS` | Words that mark a job as entry-level (always kept) |
 | `NOISE_KEYWORDS` | Words that filter out senior roles |
 | `IGNORE_FIELDS` | Massive list of keywords to ignore (e.g., Clinical, Medical) |
@@ -94,6 +96,7 @@ Get a free API key at [console.groq.com](https://console.groq.com)
 | PG&E | ✅ Working | Pacific Gas & Electric |
 | SMUD | ✅ Working | Sacramento Municipal Utility District |
 | Kaiser | ✅ Working | Kaiser Permanente (Full Location Scrape) |
+| State CA | ✅ Working | State of California (CalCareers) - configurable county |
 
 ## Commands
 
