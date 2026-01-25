@@ -1,5 +1,6 @@
 # Personal data - DO NOT COMMIT
 .env
+config.py
 jobs.db
 *.xlsx
 jobs_raw.json
@@ -45,3 +46,7 @@ Thumbs.db
 
 # Test/debug files
 clicking*
+*.har
+kaiser har/
+smud click on job.har
+smud search.har

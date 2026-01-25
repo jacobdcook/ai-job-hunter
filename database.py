@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import pandas as pd
+import hashlib
 from datetime import datetime
 
 DB_NAME = "jobs.db"
@@ -20,7 +21,8 @@ def init_db():
             missing_skills TEXT,
             analysis TEXT,
             status TEXT DEFAULT 'new',
-            last_seen TEXT
+            last_seen TEXT,
+            source TEXT
         )
     ''')
     
@@ -31,22 +33,38 @@ def init_db():
         print("Adding 'last_seen' column to database...")
         c.execute("ALTER TABLE jobs ADD COLUMN last_seen TEXT")
     
+    # Check if source column exists (for migration)
+    try:
+        c.execute("SELECT source FROM jobs LIMIT 1")
+    except sqlite3.OperationalError:
+        print("Adding 'source' column to database...")
+        c.execute("ALTER TABLE jobs ADD COLUMN source TEXT")
+    
     conn.commit()
     conn.close()
+
+
+def generate_job_id(link):
+    """Generate a unique job ID from the link.
+    Uses a hash of the normalized URL to avoid collisions."""
+    # Normalize: strip trailing slash, lowercase
+    normalized = link.rstrip('/').lower()
+    # Create a short hash (first 16 chars of md5)
+    return hashlib.md5(normalized.encode()).hexdigest()[:16]
 
 def save_job(job_data):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # Use job link or title+location as a unique ID if real ID isn't available
-    # For PG&E, the link usually contains a numeric ID at the end
-    job_id = job_data['link'].split('/')[-1] if '/' in job_data['link'] else job_data['link']
+    # Use hash of link for unique ID (avoids collision from trailing slashes, etc.)
+    job_id = generate_job_id(job_data['link'])
     
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    source = job_data.get('source', 'Unknown')
     
     try:
         c.execute('''
-            INSERT INTO jobs (id, title, link, location, date_posted, description, status, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?, 'new', ?)
+            INSERT INTO jobs (id, title, link, location, date_posted, description, status, last_seen, source)
+            VALUES (?, ?, ?, ?, ?, ?, 'new', ?, ?)
         ''', (
             job_id,
             job_data['title'],
@@ -54,7 +72,8 @@ def save_job(job_data):
             job_data['location'],
             job_data.get('date_posted', 'N/A'),
             job_data.get('description', ''),
-            now
+            now,
+            source
         ))
         conn.commit()
         return True # New job saved
@@ -105,14 +124,15 @@ def get_jobs_needing_analysis():
     return rows
 
 def export_to_excel(filename=None):
-    """Export all jobs to an Excel file with clickable links and priority sorting.
-    Uses a master file that gets overwritten each time for a single source of truth."""
+    """Export all jobs to an Excel file with tabs per source.
+    Creates: All Jobs, PG&E, SMUD, Kaiser tabs (tabs only created if jobs exist).
+    Always uses jobs_master.xlsx (overwrites existing file)."""
     if filename is None:
-        filename = "pge_jobs_master.xlsx"  # Single master file, overwrites each time
+        filename = "jobs_master.xlsx"  # Single master file - always overwrites
     
     conn = sqlite3.connect(DB_NAME)
     
-    # Get ALL jobs from database (deduplicated by link in DB), ordered by score (highest first), then by title
+    # Get ALL jobs from database with source
     query = """
         SELECT 
             title,
@@ -123,7 +143,8 @@ def export_to_excel(filename=None):
             link,
             date_posted,
             status,
-            last_seen
+            last_seen,
+            source
         FROM jobs
         ORDER BY 
             CASE 
@@ -155,23 +176,25 @@ def export_to_excel(filename=None):
     
     df['Priority'] = df['match_score'].apply(get_priority)
     
-    # Reorder columns for better readability
-    column_order = ['Priority', 'match_score', 'title', 'location', 'link', 
+    # Reorder columns for better readability (include source)
+    column_order = ['Priority', 'match_score', 'title', 'location', 'source', 'link', 
                    'missing_skills', 'analysis', 'date_posted', 'last_seen', 'status']
     df = df[column_order]
     
     # Rename columns for cleaner Excel output
-    df.columns = ['Priority', 'Score', 'Job Title', 'Location', 'Apply Link', 
+    df.columns = ['Priority', 'Score', 'Job Title', 'Location', 'Source', 'Apply Link', 
                   'Missing Skills', 'AI Analysis', 'Date Posted', 'Last Seen (Active)', 'Status']
     
-    # Create Excel writer with formatting
-    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='All Jobs', index=False)
-        
-        # Get the workbook and worksheet
-        workbook = writer.book
-        worksheet = writer.sheets['All Jobs']
-        
+    # Create separate dataframes per source
+    df_pge = df[df['Source'] == 'PG&E'].copy()
+    df_smud = df[df['Source'] == 'SMUD'].copy()
+    df_kaiser = df[df['Source'] == 'Kaiser Permanente'].copy()
+    df_all = df.copy()
+    
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
+    def format_worksheet(worksheet, link_col_idx=5):
+        """Apply formatting to a worksheet."""
         # Auto-adjust column widths
         for column in worksheet.columns:
             max_length = 0
@@ -185,27 +208,50 @@ def export_to_excel(filename=None):
             adjusted_width = min(max_length + 2, 50)
             worksheet.column_dimensions[column_letter].width = adjusted_width
         
-        # Make links clickable (Excel will auto-detect URLs)
-        from openpyxl.styles import Font
+        # Make links clickable
         link_font = Font(color="0563C1", underline="single")
-        
-        # Find the link column and format it
         for row in worksheet.iter_rows(min_row=2, max_row=worksheet.max_row):
-            link_cell = row[4]  # Column E (Apply Link) - Index 4
+            link_cell = row[link_col_idx]
             if link_cell.value and isinstance(link_cell.value, str) and link_cell.value.startswith('http'):
                 link_cell.font = link_font
                 link_cell.hyperlink = link_cell.value
         
         # Format header row
-        from openpyxl.styles import Font, PatternFill, Alignment
         header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         header_font = Font(bold=True, color="FFFFFF")
-        
         for cell in worksheet[1]:
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
     
-    print(f"\n✅ Exported {len(df)} jobs to: {filename}")
-    print(f"   (Master file updated - all jobs sorted by score, deduplicated)")
+    # Create Excel writer with multiple sheets
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+        # Write All Jobs tab
+        df_all.to_excel(writer, sheet_name='All Jobs', index=False)
+        format_worksheet(writer.sheets['All Jobs'], link_col_idx=5)
+        
+        # Write PG&E tab (if any jobs exist)
+        if not df_pge.empty:
+            df_pge.to_excel(writer, sheet_name='PG&E', index=False)
+            format_worksheet(writer.sheets['PG&E'], link_col_idx=5)
+        
+        # Write SMUD tab (if any jobs exist)
+        if not df_smud.empty:
+            df_smud.to_excel(writer, sheet_name='SMUD', index=False)
+            format_worksheet(writer.sheets['SMUD'], link_col_idx=5)
+        
+        # Write Kaiser tab (if any jobs exist)
+        if not df_kaiser.empty:
+            df_kaiser.to_excel(writer, sheet_name='Kaiser', index=False)
+            format_worksheet(writer.sheets['Kaiser'], link_col_idx=5)
+    
+    print(f"\n✅ Exported {len(df_all)} jobs to: {filename}")
+    tabs_list = [f"All Jobs ({len(df_all)})"]
+    if not df_pge.empty:
+        tabs_list.append(f"PG&E ({len(df_pge)})")
+    if not df_smud.empty:
+        tabs_list.append(f"SMUD ({len(df_smud)})")
+    if not df_kaiser.empty:
+        tabs_list.append(f"Kaiser ({len(df_kaiser)})")
+    print(f"   Tabs: {', '.join(tabs_list)}")
     return filename

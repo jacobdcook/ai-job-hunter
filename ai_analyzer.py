@@ -16,6 +16,72 @@ class JobAnalyzer:
         self.last_call_time = 0
         self.rate_limit_delay = 2  # seconds between API calls
 
+    def filter_titles_with_ai(self, jobs):
+        """
+        Takes a list of job dicts and returns only the ones that are relevant based on title.
+        This is a 'pre-filter' to avoid fetching descriptions for irrelevant jobs.
+        """
+        if not self.client or not jobs:
+            return jobs
+
+        # Prepare the list of titles for the AI
+        titles_list = "\n".join([f"{i}. {j['title']} (Source: {j['source']})" for i, j in enumerate(jobs)])
+        
+        prompt = f"""
+Given this candidate's background:
+{YOUR_BACKGROUND}
+
+I have a list of job titles from various companies. Please identify ALL jobs that are even SLIGHTLY relevant to my background (IT, Cyber, CS, Tech, Ops, Support, Customer Service, etc.) and exclude ONLY the ones that are totally irrelevant (Medical, Clinical, Nursing, Housekeeping, etc.).
+
+IMPORTANT: Return ALL relevant jobs - do not limit the number. If 50 out of 100 are relevant, return all 50 indices.
+
+List of Jobs:
+{titles_list}
+
+Return a JSON object with a single key 'relevant_indices' containing a list of ALL integers (indices) of the jobs that are relevant to this candidate's background.
+
+Example (if jobs 0, 2, 5, 7, 9, 12 are all relevant):
+{{
+  "relevant_indices": [0, 2, 5, 7, 9, 12]
+}}
+"""
+
+        try:
+            # Rate limiting - wait if needed
+            elapsed = time.time() - self.last_call_time
+            if elapsed < self.rate_limit_delay:
+                time.sleep(self.rate_limit_delay - elapsed)
+
+            response = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a technical recruiter filtering job titles for a CS/Cybersecurity candidate."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                model="llama-3.1-8b-instant",
+                response_format={"type": "json_object"}
+            )
+            
+            self.last_call_time = time.time()
+            
+            result = json.loads(response.choices[0].message.content)
+            indices = result.get("relevant_indices", [])
+            
+            filtered_jobs = []
+            for idx in indices:
+                if 0 <= idx < len(jobs):
+                    filtered_jobs.append(jobs[idx])
+            
+            return filtered_jobs
+        except Exception as e:
+            print(f"Error calling Groq API for title filtering: {e}")
+            return jobs # Return all if AI filtering fails
+
     def analyze_job(self, job_title, job_description):
         if not self.client:
             return 0, "GROQ API key missing", "N/A"

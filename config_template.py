@@ -5,50 +5,54 @@ INSTRUCTIONS:
 1. Copy this file and rename it to 'config.py'
 2. Fill in YOUR_BACKGROUND with your own info
 3. Customize SEARCH_QUERIES for the types of jobs you want
-4. Adjust ENTRY_LEVEL_INDICATORS and NOISE_KEYWORDS as needed
+4. Adjust FILTERS (ENTRY_LEVEL_INDICATORS, NOISE_KEYWORDS, IGNORE_FIELDS)
+5. Set INTEREST_KEYWORDS for the AI pre-filter
 """
 
 YOUR_BACKGROUND = """
 - Name: [Your Name]
 - Education: [Your Degree(s) and School(s)]
 - Certifications: [Any certs you have - e.g., CompTIA Security+, AWS, etc.]
-- Core Skills: [List your top 5-10 technical skills]
+- Core Skills: [List your top technical skills]
 - Key Projects: 
   * [Project 1]: Brief description
   * [Project 2]: Brief description
-  * [Project 3]: Brief description
 - Work History: [Brief summary of relevant work experience]
 - Target Roles: [Types of jobs you're looking for]
 """
 
 # =============================================================================
+# JOB SITES CONFIGURATION
+# =============================================================================
+# Enable/disable which job sites to search
+ENABLED_SITES = {
+    "pge": True,       # Pacific Gas & Electric
+    "smud": True,      # Sacramento Municipal Utility District
+    "kaiser": True,    # Kaiser Permanente
+}
+
+# Kaiser Permanente specific URLs (Default: California, US)
+# To change location: 
+# 1. Go to https://www.kaiserpermanentejobs.org
+# 2. Search for your location (e.g., "Texas, US")
+# 3. Copy the URL path after the domain (e.g., "/search-jobs/Texas%2C%20US/...")
+KAISER_LOCATION_URL = "/search-jobs/California%2C%20US/641/3/6252001-5332921/37x25022/-119x75126/25/2"
+KAISER_KEYWORD_URL_TEMPLATE = "/search-jobs/{keyword}/California%2C%20US/641/1/3/6252001-5332921/37x25022/-119x75126/25/2"
+
+# =============================================================================
 # SEARCH QUERIES
 # =============================================================================
 # These keywords will be used for searching job sites.
-# Add terms that match your target roles.
-
 SEARCH_QUERIES = [
-    # Security/IT focused
-    "Security", "Cyber", "IT Analyst", "Systems Analyst",
-    
-    # Entry-level / foot-in-the-door
-    "Associate", "Trainee", "Apprentice", "Intern", "Internship",
-    
-    # Customer-facing (good for getting hired)
-    "Customer Service", "Representative", "Support",
-    
-    # Technical
-    "Technician", "Infrastructure", "Network",
-    
-    # Programs
-    "Rotation", "Rotational", "RDP",
-    
-    # Other
-    "Compliance", "Operations Analyst"
+    "Security", "Cyber", "Associate", "Trainee", "Apprentice", 
+    "Customer Service", "Representative", "RDP", "Rotation", "Rotational",
+    "IT Analyst", "Systems Analyst", "Infrastructure", "Compliance",
+    "Network", "Support", "Technician", "Operations Analyst",
+    "Intern", "Internship"
 ]
 
 # =============================================================================
-# FILTERS
+# FILTERS (Noise & Entry-Level)
 # =============================================================================
 
 # Jobs with these words in the title are ALWAYS kept (overrides noise filter)
@@ -60,17 +64,36 @@ ENTRY_LEVEL_INDICATORS = [
 ]
 
 # Jobs with these words in the title are filtered OUT (unless they have an entry-level indicator)
-NOISE_KEYWORDS = [
-    "Senior", "Expert", "Principal", "Lead", "Chief", "Director", "Manager"
+NOISE_KEYWORDS = ["Senior", "Expert", "Principal", "Lead", "Chief", "Director", "Manager"]
+
+# Ignore these fields entirely (e.g., clinical/medical roles if you're technical)
+IGNORE_FIELDS = [
+    # Medical/Clinical Roles
+    "Nurse", "Nursing", "Physician", "Medical Assistant", "Social Worker", 
+    "Acupuncturist", "Pharmacist", "Pharmacy", "Therapist", "Social Services",
+    "Patient Care", "Clinical", "LVN", "LPN", "Dietitian", "Surgical", "Imaging",
+    "Radiology", "Anesthesia", "Behavioral Health", "Spiritual Care", "Chaplain",
+    "Pathologist", "Laboratory Assistant", "CLS", "Rad Technologist", "Technologist",
+    "Surg Tech", "Monitor Technician", "Emergency Room", "Cardiac", "Dialysis",
+    "Oncology", "Psychiatric", "Counselor", "Lactation", "Embryologist", "Physic",
+    "Midwife", "Dermatology", "Optometrist", "Ophthalmology", "Dental", "Hygienist",
+    "Veterinary", "Respiratory", "Speech", "Occupational", "Rehabilitation", "Physical Therapist",
+    "Echocardiograph", "Sonographer", "Pediatric", "OB/GYN", "Inpatient", "Outpatient",
+    "Mental Health", "Psychologist", "Psychiatry", "Counseling", "CNA", "Home Health",
+    "Urology", "Obstetrics", "Gynecology", "Surgery", "Perioperative", "Post-op",
+    "Case Manager", "Case Management", "Utilization Review", "QA Nurse",
+    "Chronic Conditions", "Disease Management", "Care Coordinator", "Care Management",
+    "Health Coach", "Health Educator", "Wellness", "Population Health",
+    # Facility/Service Roles
+    "Housekeeping", "Attendant", "Cook", "Kitchen", "Gardener", "Storekeeper",
+    "Ward Clerk", "Admitting Clerk", "Receptionist", 
+    "Administrative Coordinator", "Transcriptionist", "Phlebotomist", "Sterile Processing",
+    "Environmental Services", "EVS", "Security Guard", "Security Officer", "Cashier"
 ]
 
-# =============================================================================
-# JOB SITES CONFIGURATION
-# =============================================================================
-# Enable/disable which job sites to search
-
-ENABLED_SITES = {
-    "pge": True,      # Pacific Gas & Electric
-    "smud": False,    # Sacramento Municipal Utility District (coming soon)
-    # Add more sites here as they're implemented
-}
+# High-priority keywords for your background (used for AI pre-filter)
+INTEREST_KEYWORDS = [
+    "Cyber", "Security", "IT", "Analyst", "Systems", "Network", "Infrastructure",
+    "Data", "Python", "Cloud", "Azure", "Engineering", "Operations", "Technical",
+    "Support", "Compliance", "Warehouse", "Logistics", "Hardware", "Diagnostics"
+]

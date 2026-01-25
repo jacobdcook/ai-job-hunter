@@ -4,12 +4,13 @@ An AI-powered job search automation tool that scrapes job listings, filters them
 
 ## Features
 
-- **Multi-site scraping**: Search multiple job boards (PG&E, SMUD, and more)
-- **Smart filtering**: Automatically filters out senior/expert roles you're not targeting
+- **Multi-site scraping**: Search multiple job boards (PG&E, SMUD, Kaiser Permanente)
+- **Smart filtering**: Automatically filters out senior/expert roles and irrelevant clinical/medical fields
+- **AI-powered Title Pre-Filtering**: Uses AI to scan hundreds of job titles and identify the relevant ones before fetching full descriptions
 - **AI-powered matching**: Uses Groq AI to score jobs 1-10 based on YOUR specific background
-- **Excel export**: Generates a master Excel file with clickable apply links
+- **Excel export**: Generates a master Excel file with clickable apply links and source-specific tabs
 - **Deduplication**: Tracks jobs in a local database so you never see duplicates
-- **"Last Seen" tracking**: Know which jobs are still active vs. potentially closed
+- **Anti-Bot Protection**: Built-in delays and human-like behavior to prevent IP blocks
 
 ## Quick Start
 
@@ -70,9 +71,12 @@ After running, you'll have:
 | Variable | Description |
 |----------|-------------|
 | `YOUR_BACKGROUND` | Your education, skills, projects, and target roles |
-| `SEARCH_QUERIES` | Keywords to search for on job sites |
+| `SEARCH_QUERIES` | Keywords to search for on PG&E/SMUD |
+| `KAISER_LOCATION_URL` | The specific location search URL for Kaiser Permanente |
 | `ENTRY_LEVEL_INDICATORS` | Words that mark a job as entry-level (always kept) |
 | `NOISE_KEYWORDS` | Words that filter out senior roles |
+| `IGNORE_FIELDS` | Massive list of keywords to ignore (e.g., Clinical, Medical) |
+| `INTEREST_KEYWORDS` | Priority keywords for your tech background (used for AI scanning) |
 | `ENABLED_SITES` | Toggle which job sites to search |
 
 ### `.env`
@@ -88,7 +92,8 @@ Get a free API key at [console.groq.com](https://console.groq.com)
 | Site | Status | Notes |
 |------|--------|-------|
 | PG&E | ✅ Working | Pacific Gas & Electric |
-| SMUD | 🚧 Coming Soon | Sacramento Municipal Utility District |
+| SMUD | ✅ Working | Sacramento Municipal Utility District |
+| Kaiser | ✅ Working | Kaiser Permanente (Full Location Scrape) |
 
 ## Commands
 
@@ -102,21 +107,13 @@ python3 export_excel.py
 
 ## How It Works
 
-1. **Scrape**: Uses Playwright to search job sites for your keywords
-2. **Filter**: Removes senior/expert roles (unless marked entry-level)
-3. **Dedupe**: Checks against database to find only NEW jobs
-4. **Fetch**: Gets full job descriptions for new jobs
-5. **Analyze**: Sends each job to Groq AI for scoring
-6. **Export**: Creates/updates master Excel file with all jobs
-
-## Contributing
-
-PRs welcome! To add a new job site:
-
-1. Create a new scraper in `scrapers/` folder
-2. Follow the interface pattern from `scrapers/pge.py`
-3. Add the site to `ENABLED_SITES` in `config_template.py`
-4. Submit a PR!
+1. **Scrape**: Uses Playwright to search job sites for your keywords (or full location dump)
+2. **Filter**: Removes senior/expert roles and clinical fields via keyword matching
+3. **AI Pre-Filter**: Groq AI scans all remaining titles to pick the most relevant technical roles
+4. **Dedupe**: Checks against database to find only NEW jobs
+5. **Fetch**: Gets full job descriptions for new jobs (with 10s delays for bot safety)
+6. **Analyze**: Groq AI performs a deep analysis of the job description vs your profile
+7. **Export**: Creates/updates master Excel file with clickable links
 
 ## License
 
