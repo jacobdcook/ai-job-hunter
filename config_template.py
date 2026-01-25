@@ -56,6 +56,7 @@ SEARCH_QUERIES = [
 # =============================================================================
 
 # Jobs with these words in the title are ALWAYS kept (overrides noise filter)
+# Example: If you are looking for medical roles, you might add "Nurse" or "CNA" here.
 ENTRY_LEVEL_INDICATORS = [
     "Associate", "Junior", "Entry", "Trainee", "Apprentice", 
     "Rotational", "Rotation", "RDP", "Representative", "Service", 
@@ -64,11 +65,14 @@ ENTRY_LEVEL_INDICATORS = [
 ]
 
 # Jobs with these words in the title are filtered OUT (unless they have an entry-level indicator)
+# This is where you put "Senior", "Manager", etc.
 NOISE_KEYWORDS = ["Senior", "Expert", "Principal", "Lead", "Chief", "Director", "Manager"]
 
-# Ignore these fields entirely (e.g., clinical/medical roles if you're technical)
+# Ignore these fields entirely.
+# INSTRUCTIONS: Add any keywords here that you want to IMMEDIATELY discard.
+# If you are looking for medical jobs, REMOVE the medical keywords below.
 IGNORE_FIELDS = [
-    # Medical/Clinical Roles
+    # Default list excludes medical/clinical roles (useful for tech seekers)
     "Nurse", "Nursing", "Physician", "Medical Assistant", "Social Worker", 
     "Acupuncturist", "Pharmacist", "Pharmacy", "Therapist", "Social Services",
     "Patient Care", "Clinical", "LVN", "LPN", "Dietitian", "Surgical", "Imaging",
@@ -92,6 +96,7 @@ IGNORE_FIELDS = [
 ]
 
 # High-priority keywords for your background (used for AI pre-filter)
+# INSTRUCTIONS: Add keywords that MUST be in the job title for you to be interested.
 INTEREST_KEYWORDS = [
     "Cyber", "Security", "IT", "Analyst", "Systems", "Network", "Infrastructure",
     "Data", "Python", "Cloud", "Azure", "Engineering", "Operations", "Technical",

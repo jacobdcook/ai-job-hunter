@@ -23,8 +23,7 @@ def word_match(keyword, text):
 
 def filter_jobs(jobs):
     """
-    Filters out senior roles and clinical roles, focusing on Tech/Ops roles.
-    Uses WHOLE WORD matching to avoid false positives (e.g., "IT" matching "conditions").
+    Filters jobs based on keywords defined in config.py.
     """
     filtered_jobs = []
     
@@ -32,21 +31,21 @@ def filter_jobs(jobs):
         title = job["title"]
         title_lower = title.lower()
         
-        # 1. Immediate discard: Clinical/Medical roles (substring is OK here - more aggressive)
+        # 1. Immediate discard: keywords in IGNORE_FIELDS
         if any(field.lower() in title_lower for field in IGNORE_FIELDS):
             continue
             
         # 2. Check for noise keywords (Senior, Manager, etc.) - whole word match
         has_noise = any(word_match(keyword, title) for keyword in NOISE_KEYWORDS)
         
-        # 3. Check if it's explicitly entry-level (Associate, Junior, etc.) - whole word match
+        # 3. Check if it matches an entry-level indicator - whole word match
         is_entry_level = any(word_match(indicator, title) for indicator in ENTRY_LEVEL_INDICATORS)
         
-        # 4. Check if it's in our interest area (IT, Cyber, Ops, etc.) - whole word match
+        # 4. Check if it's in the interest area keywords - whole word match
         is_interesting = any(word_match(interest, title) for interest in INTEREST_KEYWORDS)
         
         # Keep if:
-        # (It's Tech/Ops related OR explicitly Entry Level) AND (Not a Senior/Manager role)
+        # (Matches interest OR is explicitly Entry Level) AND (Not a noise role)
         if (is_interesting or is_entry_level) and not has_noise:
             filtered_jobs.append(job)
     
