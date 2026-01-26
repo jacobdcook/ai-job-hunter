@@ -74,8 +74,13 @@ Example (if jobs 0, 2, 5, 7, 9, 12 are all relevant):
             
             filtered_jobs = []
             for idx in indices:
-                if 0 <= idx < len(jobs):
-                    filtered_jobs.append(jobs[idx])
+                try:
+                    # Force to int to avoid crash if AI returns strings
+                    idx_int = int(idx)
+                    if 0 <= idx_int < len(jobs):
+                        filtered_jobs.append(jobs[idx_int])
+                except (ValueError, TypeError):
+                    continue
             
             return filtered_jobs
         except Exception as e:

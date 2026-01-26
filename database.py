@@ -125,7 +125,7 @@ def get_jobs_needing_analysis():
 
 def export_to_excel(filename=None):
     """Export all jobs to an Excel file with tabs per source.
-    Creates: All Jobs, PG&E, SMUD, Kaiser tabs (tabs only created if jobs exist).
+    Creates: All Jobs, PG&E, SMUD, Kaiser, State CA tabs (tabs only created if jobs exist).
     Always uses jobs_master.xlsx (overwrites existing file)."""
     if filename is None:
         filename = "jobs_master.xlsx"  # Single master file - always overwrites
@@ -185,12 +185,6 @@ def export_to_excel(filename=None):
     df.columns = ['Priority', 'Score', 'Job Title', 'Location', 'Source', 'Apply Link', 
                   'Missing Skills', 'AI Analysis', 'Date Posted', 'Last Seen (Active)', 'Status']
     
-    # Create separate dataframes per source
-    df_pge = df[df['Source'] == 'PG&E'].copy()
-    df_smud = df[df['Source'] == 'SMUD'].copy()
-    df_kaiser = df[df['Source'] == 'Kaiser Permanente'].copy()
-    df_all = df.copy()
-    
     from openpyxl.styles import Font, PatternFill, Alignment
     
     def format_worksheet(worksheet, link_col_idx=5):
@@ -224,34 +218,40 @@ def export_to_excel(filename=None):
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
     
+    # Get all unique sources (handle None/NaN values)
+    unique_sources = df['Source'].dropna().unique()
+    
+    # Create tab name mapping for cleaner names
+    tab_name_map = {
+        'PG&E': 'PG&E',
+        'SMUD': 'SMUD',
+        'Kaiser Permanente': 'Kaiser',
+        'State of California': 'State CA'
+    }
+    
     # Create Excel writer with multiple sheets
     with pd.ExcelWriter(filename, engine='openpyxl') as writer:
         # Write All Jobs tab
-        df_all.to_excel(writer, sheet_name='All Jobs', index=False)
+        df.to_excel(writer, sheet_name='All Jobs', index=False)
         format_worksheet(writer.sheets['All Jobs'], link_col_idx=5)
         
-        # Write PG&E tab (if any jobs exist)
-        if not df_pge.empty:
-            df_pge.to_excel(writer, sheet_name='PG&E', index=False)
-            format_worksheet(writer.sheets['PG&E'], link_col_idx=5)
-        
-        # Write SMUD tab (if any jobs exist)
-        if not df_smud.empty:
-            df_smud.to_excel(writer, sheet_name='SMUD', index=False)
-            format_worksheet(writer.sheets['SMUD'], link_col_idx=5)
-        
-        # Write Kaiser tab (if any jobs exist)
-        if not df_kaiser.empty:
-            df_kaiser.to_excel(writer, sheet_name='Kaiser', index=False)
-            format_worksheet(writer.sheets['Kaiser'], link_col_idx=5)
+        # Create a tab for each unique source
+        tabs_created = []
+        for source in unique_sources:
+            if pd.isna(source) or source == '':
+                continue
+                
+            df_source = df[df['Source'] == source].copy()
+            if df_source.empty:
+                continue
+            
+            # Use mapped name or clean up the source name for tab
+            tab_name = tab_name_map.get(source, source.replace(' ', '_')[:31])  # Excel tab name limit is 31 chars
+            df_source.to_excel(writer, sheet_name=tab_name, index=False)
+            format_worksheet(writer.sheets[tab_name], link_col_idx=5)
+            tabs_created.append(f"{tab_name} ({len(df_source)})")
     
-    print(f"\n✅ Exported {len(df_all)} jobs to: {filename}")
-    tabs_list = [f"All Jobs ({len(df_all)})"]
-    if not df_pge.empty:
-        tabs_list.append(f"PG&E ({len(df_pge)})")
-    if not df_smud.empty:
-        tabs_list.append(f"SMUD ({len(df_smud)})")
-    if not df_kaiser.empty:
-        tabs_list.append(f"Kaiser ({len(df_kaiser)})")
+    print(f"\n✅ Exported {len(df)} jobs to: {filename}")
+    tabs_list = [f"All Jobs ({len(df)})"] + tabs_created
     print(f"   Tabs: {', '.join(tabs_list)}")
     return filename

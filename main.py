@@ -12,10 +12,10 @@ from config import SEARCH_QUERIES, NOISE_KEYWORDS, ENTRY_LEVEL_INDICATORS, ENABL
 
 # Import State CA config if available
 try:
-    from config import STATE_CA_LOCATION_ID, STATE_CA_KEYWORDS
+    from config import STATE_CA_LOCATION, STATE_CA_KEYWORDS
 except ImportError:
-    STATE_CA_LOCATION_ID = "418"  # Default: Sacramento County
-    STATE_CA_KEYWORDS = ["IT", "Security", "Analyst", "Systems"]
+    STATE_CA_LOCATION = "Sacramento County"  # Default location
+    STATE_CA_KEYWORDS = ["Information", "IT", "Security", "Analyst"]
 
 
 import re
@@ -39,22 +39,26 @@ def filter_jobs(jobs):
         title = job["title"]
         title_lower = title.lower()
         
-        # 1. Immediate discard: keywords in IGNORE_FIELDS
+        # 1. Immediate discard: keywords in IGNORE_FIELDS (Medical/Nursing/etc.)
         if any(field.lower() in title_lower for field in IGNORE_FIELDS):
             continue
             
-        # 2. Check for noise keywords (Senior, Manager, etc.) - whole word match
-        has_noise = any(word_match(keyword, title) for keyword in NOISE_KEYWORDS)
-        
-        # 3. Check if it matches an entry-level indicator - whole word match
-        is_entry_level = any(word_match(indicator, title) for indicator in ENTRY_LEVEL_INDICATORS)
-        
-        # 4. Check if it's in the interest area keywords - whole word match
+        # 2. Check if it's in the interest area keywords (Cyber, IT, Analyst, etc.)
+        # If it's interesting, we keep it REGARDLESS of noise (Senior/Manager)
+        # because the user wants the AI to decide, not a dumb string filter.
         is_interesting = any(word_match(interest, title) for interest in INTEREST_KEYWORDS)
         
-        # Keep if:
-        # (Matches interest OR is explicitly Entry Level) AND (Not a noise role)
-        if (is_interesting or is_entry_level) and not has_noise:
+        # 3. Check if it matches an entry-level indicator
+        is_entry_level = any(word_match(indicator, title) for indicator in ENTRY_LEVEL_INDICATORS)
+        
+        # Keep if it's interesting OR entry level.
+        # We only apply NOISE_KEYWORDS if it's NEITHER interesting nor entry level.
+        has_noise = any(word_match(keyword, title) for keyword in NOISE_KEYWORDS)
+        
+        if is_interesting or is_entry_level:
+            filtered_jobs.append(job)
+        elif not has_noise:
+            # If it's not explicitly interesting but also doesn't have noise, keep it anyway
             filtered_jobs.append(job)
     
     return filtered_jobs
@@ -67,30 +71,33 @@ def select_sites():
     print("\n" + "="*60)
     print("        🎯 AI JOB HUNTER - Multi-Site Job Search")
     print("="*60)
-    print("\nSelect sites to scrape:")
+    print("\nSelect options:")
     print("  1) PG&E only")
     print("  2) SMUD only")
     print("  3) Kaiser Permanente only")
     print("  4) State of California only")
     print("  5) All sites (PG&E + SMUD + Kaiser + State CA)")
     print("  6) Use config.py settings")
+    print("  7) RE-ANALYZE DATABASE (Skip scraping, run AI on existing jobs)")
     
     while True:
-        choice = input("\nEnter choice (1-6): ").strip()
+        choice = input("\nEnter choice (1-7): ").strip()
         if choice == "1":
-            return {"pge": True, "smud": False, "kaiser": False, "state_ca": False}
+            return {"pge": True, "smud": False, "kaiser": False, "state_ca": False}, False
         elif choice == "2":
-            return {"pge": False, "smud": True, "kaiser": False, "state_ca": False}
+            return {"pge": False, "smud": True, "kaiser": False, "state_ca": False}, False
         elif choice == "3":
-            return {"pge": False, "smud": False, "kaiser": True, "state_ca": False}
+            return {"pge": False, "smud": False, "kaiser": True, "state_ca": False}, False
         elif choice == "4":
-            return {"pge": False, "smud": False, "kaiser": False, "state_ca": True}
+            return {"pge": False, "smud": False, "kaiser": False, "state_ca": True}, False
         elif choice == "5":
-            return {"pge": True, "smud": True, "kaiser": True, "state_ca": True}
+            return {"pge": True, "smud": True, "kaiser": True, "state_ca": True}, False
         elif choice == "6":
-            return ENABLED_SITES.copy()
+            return ENABLED_SITES.copy(), False
+        elif choice == "7":
+            return {}, True
         else:
-            print("Invalid choice. Please enter 1, 2, 3, 4, 5, or 6.")
+            print("Invalid choice. Please enter 1-7.")
 
 
 async def main():
@@ -100,73 +107,131 @@ async def main():
     analyzer = JobAnalyzer()
     
     # 2. Site Selection Menu
-    selected_sites = select_sites()
+    selected_sites, reanalyze_only = select_sites()
     
-    print(f"\nSearch queries: {', '.join(SEARCH_QUERIES)}")
-    print(f"Selected sites: {[k.upper() for k, v in selected_sites.items() if v]}")
-    print("-"*60)
-    
-    # 3. Scrape Job Listings from selected sites
-    all_raw_jobs = []
-    
-    # PG&E
-    if selected_sites.get("pge", False):
-        print("\n📍 Scraping PG&E Jobs...")
-        for query in SEARCH_QUERIES:
-            raw_jobs = await scrape_pge_jobs(query, headless=False)
-            all_raw_jobs.extend(raw_jobs)
-    
-    # SMUD - scrape ALL categories + keyword searches in one go
-    if selected_sites.get("smud", False):
-        print("\n📍 Scraping SMUD Jobs (all categories + keywords)...")
-        raw_jobs = await scrape_all_smud_jobs(SEARCH_QUERIES, headless=False)
-        all_raw_jobs.extend(raw_jobs)
-    
-    # Kaiser Permanente - scrape ALL California jobs, then filter
-    # (Kaiser's "View All" works properly unlike SMUD, so we get everything)
-    if selected_sites.get("kaiser", False):
-        print("\n📍 Scraping Kaiser Permanente Jobs (California - Full Dump)...")
-        raw_jobs = await scrape_kaiser_jobs(headless=False)
-        all_raw_jobs.extend(raw_jobs)
-    
-    # State of California - scrape multiple keywords with configured location
-    if selected_sites.get("state_ca", False):
-        print(f"\n📍 Scraping State of California Jobs (locid={STATE_CA_LOCATION_ID})...")
-        raw_jobs = await scrape_all_state_ca_jobs(
-            search_queries=STATE_CA_KEYWORDS, 
-            location_id=STATE_CA_LOCATION_ID, 
-            headless=False
-        )
-        all_raw_jobs.extend(raw_jobs)
-    
-    # Deduplicate by link
-    unique_jobs_dict = {job['link']: job for job in all_raw_jobs}
-    unique_jobs = list(unique_jobs_dict.values())
-    
-    print(f"\n{'='*60}")
-    print(f"Total unique jobs scraped: {len(unique_jobs)}")
-    
-    # 4. Filter Noise
-    filtered_jobs = filter_jobs(unique_jobs)
-    print(f"Jobs remaining after noise filter: {len(filtered_jobs)}")
-    
-    # 5. AI Title Pre-Filtering (NEW)
-    # If we have a lot of jobs, ask AI to pick the best ones before we fetch descriptions
-    if len(filtered_jobs) > 10:
-        print(f"\n🤖 AI is pre-filtering {len(filtered_jobs)} titles to save time/requests...")
-        # Break into chunks of 100 titles for the AI if needed
-        all_ai_filtered = []
-        for i in range(0, len(filtered_jobs), 100):
-            chunk = filtered_jobs[i:i+100]
-            ai_filtered_chunk = analyzer.filter_titles_with_ai(chunk)
-            all_ai_filtered.extend(ai_filtered_chunk)
+    if not reanalyze_only:
+        print(f"\nSearch queries: {', '.join(SEARCH_QUERIES)}")
+        print(f"Selected sites: {[k.upper() for k, v in selected_sites.items() if v]}")
+        print("-"*60)
         
-        filtered_jobs = all_ai_filtered
-        print(f"AI kept {len(filtered_jobs)} relevant titles.")
-
-    # 6. Save New Jobs
-    for job in filtered_jobs:
-        save_job(job)
+        # 3. Scrape Job Listings from selected sites
+        all_raw_jobs = []
+        
+        # PG&E
+        if selected_sites.get("pge", False):
+            print("\n📍 Scraping PG&E Jobs...")
+            for query in SEARCH_QUERIES:
+                raw_jobs = await scrape_pge_jobs(query, headless=False)
+                all_raw_jobs.extend(raw_jobs)
+        
+        # SMUD - scrape ALL categories + keyword searches in one go
+        if selected_sites.get("smud", False):
+            print("\n📍 Scraping SMUD Jobs (all categories + keywords)...")
+            raw_jobs = await scrape_all_smud_jobs(SEARCH_QUERIES, headless=False)
+            all_raw_jobs.extend(raw_jobs)
+        
+        # Kaiser Permanente - scrape ALL California jobs, then filter
+        # (Kaiser's "View All" works properly unlike SMUD, so we get everything)
+        if selected_sites.get("kaiser", False):
+            print("\n📍 Scraping Kaiser Permanente Jobs (California - Full Dump)...")
+            raw_jobs = await scrape_kaiser_jobs(headless=False)
+            all_raw_jobs.extend(raw_jobs)
+        
+        # State of California - scrape multiple keywords with configured location
+        if selected_sites.get("state_ca", False):
+            print(f"\n📍 Scraping State of California Jobs ({STATE_CA_LOCATION or 'All Locations'})...")
+            raw_jobs = await scrape_state_ca_jobs(
+                search_queries=STATE_CA_KEYWORDS, 
+                location=STATE_CA_LOCATION, 
+                headless=False
+            )
+            all_raw_jobs.extend(raw_jobs)
+        
+        # Deduplicate by link
+        unique_jobs_dict = {job['link']: job for job in all_raw_jobs}
+        unique_jobs = list(unique_jobs_dict.values())
+        
+        print(f"\n{'='*60}")
+        print(f"Total unique jobs scraped: {len(unique_jobs)}")
+        
+        # 6. Save ALL New Jobs to DB (so we don't lose them even if filter is picky)
+        print(f"Saving {len(unique_jobs)} jobs to database...")
+        for job in unique_jobs:
+            save_job(job)
+            
+        # 4. Filter Noise
+        filtered_jobs = filter_jobs(unique_jobs)
+        print(f"Jobs remaining after noise filter: {len(filtered_jobs)}")
+        
+        # 5. AI Title Pre-Filtering (NEW)
+        # If we have a lot of jobs, ask AI to pick the best ones before we fetch descriptions
+        if len(filtered_jobs) > 10:
+            print(f"\n🤖 AI is pre-filtering {len(filtered_jobs)} titles to save time/requests...")
+            # Break into chunks of 100 titles for the AI if needed
+            all_ai_filtered = []
+            skipped_jobs = []
+            
+            for i in range(0, len(filtered_jobs), 100):
+                chunk = filtered_jobs[i:i+100]
+                ai_filtered_chunk = analyzer.filter_titles_with_ai(chunk)
+                all_ai_filtered.extend(ai_filtered_chunk)
+                
+                # Identify which were skipped in this chunk
+                kept_links = {j['link'] for j in ai_filtered_chunk}
+                for j in chunk:
+                    if j['link'] not in kept_links:
+                        skipped_jobs.append(j)
+            
+            if skipped_jobs:
+                print(f"AI skipped {len(skipped_jobs)} titles it thought were irrelevant (e.g., medical, non-tech).")
+                print(f"Example skipped: {', '.join([j['title'] for j in skipped_jobs[:3]])}...")
+                
+                # Mark skipped jobs in DB so they don't appear in 'needed analysis' but are still there
+                conn = sqlite3.connect(DB_NAME)
+                c = conn.cursor()
+                for j in skipped_jobs:
+                    job_id = generate_job_id(j['link'])
+                    c.execute("UPDATE jobs SET status = 'skipped_ai_title' WHERE id = ?", (job_id,))
+                conn.commit()
+                conn.close()
+            
+            filtered_jobs = all_ai_filtered
+            print(f"AI kept {len(filtered_jobs)} relevant titles for further analysis.")
+    else:
+        print("\n📍 RE-ANALYZE MODE: Skipping scraping, pulling jobs from database...")
+        print("Which source would you like to re-analyze?")
+        print("  1) State of California")
+        print("  2) PG&E")
+        print("  3) SMUD")
+        print("  4) Kaiser Permanente")
+        print("  5) ALL")
+        
+        source_choice = input("\nEnter choice (1-5): ").strip()
+        source_map = {"1": "State of California", "2": "PG&E", "3": "SMUD", "4": "Kaiser Permanente"}
+        target_source = source_map.get(source_choice)
+        
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        if target_source:
+            print(f"Filtering for source: {target_source}")
+            # Include jobs that were previously skipped by AI title filter so they can be re-analyzed
+            c.execute("SELECT title, link, location, source FROM jobs WHERE source = ? AND (match_score IS NULL OR match_score = 0 OR status = 'skipped_ai_title')", (target_source,))
+        else:
+            print("Analyzing all sources...")
+            c.execute("SELECT title, link, location, source FROM jobs WHERE (match_score IS NULL OR match_score = 0 OR status = 'skipped_ai_title')")
+        
+        rows = c.fetchall()
+        conn.close()
+        
+        filtered_jobs = []
+        for row in rows:
+            filtered_jobs.append({
+                'title': row[0],
+                'link': row[1],
+                'location': row[2],
+                'source': row[3]
+            })
+        print(f"Found {len(filtered_jobs)} jobs in DB to analyze.")
     
     # 7. Identify jobs MISSING descriptions (ONLY from our filtered list)
     conn = sqlite3.connect(DB_NAME)
@@ -237,12 +302,9 @@ async def main():
         
         # Fetch State CA descriptions
         if state_ca_to_fetch:
-            # State CA also needs rate limiting
-            fetch_limit = 50
-            if len(state_ca_to_fetch) > fetch_limit:
-                print(f"  [State CA] Limiting fetch to first {fetch_limit} jobs to avoid IP block...")
-                state_ca_to_fetch = state_ca_to_fetch[:fetch_limit]
-            
+            # State CA has rate limiting built into the scraper (10s delays)
+            # So we can fetch all of them, just in batches
+            print(f"  [State CA] Fetching descriptions for {len(state_ca_to_fetch)} jobs (this will take a while due to rate limiting)...")
             descriptions = await fetch_state_ca_descriptions_batch(state_ca_to_fetch, headless=False)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
@@ -265,8 +327,12 @@ async def main():
     jobs_to_analyze = get_jobs_needing_analysis()
     
     # Filter out anything that's not in our 'filtered_jobs' list (to avoid old junk in DB)
-    filtered_links = {job['link'] for job in filtered_jobs}
-    jobs_to_analyze = [j for j in jobs_to_analyze if j[2] in filtered_links]
+    if filtered_jobs:
+        filtered_links = {job['link'] for job in filtered_jobs}
+        jobs_to_analyze = [j for j in jobs_to_analyze if j[2] in filtered_links]
+    elif not reanalyze_only:
+        # If not re-analyzing and no filtered jobs, nothing to do
+        jobs_to_analyze = []
 
     if not jobs_to_analyze:
         print("No NEW relevant jobs requiring AI analysis.")

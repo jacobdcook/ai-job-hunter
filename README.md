@@ -73,7 +73,7 @@ After running, you'll have:
 | `YOUR_BACKGROUND` | Your education, skills, projects, and target roles |
 | `SEARCH_QUERIES` | Keywords to search for on PG&E/SMUD |
 | `KAISER_LOCATION_URL` | The specific location search URL for Kaiser Permanente |
-| `STATE_CA_LOCATION_ID` | Location ID for State CA (418=Sacramento, 382=LA, 417=San Diego, ""=all) |
+| `STATE_CA_LOCATION` | Location name for State CA ("Sacramento County", "Los Angeles County", None=all) |
 | `STATE_CA_KEYWORDS` | Keywords to search on CalCareers (e.g., IT, Security, Analyst) |
 | `ENTRY_LEVEL_INDICATORS` | Words that mark a job as entry-level (always kept) |
 | `NOISE_KEYWORDS` | Words that filter out senior roles |

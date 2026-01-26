@@ -41,20 +41,19 @@ KAISER_LOCATION_URL = "/search-jobs/California%2C%20US/641/3/6252001-5332921/37x
 KAISER_KEYWORD_URL_TEMPLATE = "/search-jobs/{keyword}/California%2C%20US/641/1/3/6252001-5332921/37x25022/-119x75126/25/2"
 
 # State of California (CalCareers) configuration
-# Location IDs (common ones):
-#   418 = Sacramento County
-#   382 = Los Angeles County  
-#   417 = San Diego County
-#   "" (empty string) = All locations statewide
-# To find your location ID:
-# 1. Go to https://calcareers.ca.gov/CalHRPublic/Search/JobSearchResults.aspx
-# 2. Use the Location filter and select your county
-# 3. Look at the URL - the "locid" parameter is your location ID
-STATE_CA_LOCATION_ID = "418"  # Default: Sacramento County
+# Location options (use the exact county name as shown on the site):
+#   "Sacramento County" - Default
+#   "Los Angeles County"
+#   "San Diego County"
+#   None - Search all locations statewide
+# Tip: Go to https://calcareers.ca.gov/CalHRPublic/Search/AdvancedJobSearch.aspx
+#      and check the Location dropdown for exact county names
+STATE_CA_LOCATION = "Sacramento County"
 
 # Keywords to search on State CA jobs site
 # These will be searched separately and results combined
-STATE_CA_KEYWORDS = ["IT", "Security", "Analyst", "Systems", "Network", "Cyber"]
+# Note: "Information" tends to return more IT results than just "IT"
+STATE_CA_KEYWORDS = ["Information", "Security", "Analyst", "Systems", "Network", "Cyber"]
 
 # =============================================================================
 # SEARCH QUERIES
