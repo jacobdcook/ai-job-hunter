@@ -1,6 +1,6 @@
 # AI Job Hunter 🎯
 
-![AI Job Hunter Banner](assets/ai-job-hunter.png)
+![AI Job Hunter Banner](assets/ai-job-hungter.png)
 
 An AI-powered job search automation tool that scrapes job listings, filters them based on your preferences, and uses AI to score how well each job matches your background.
 
