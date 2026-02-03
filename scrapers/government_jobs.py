@@ -1,6 +1,7 @@
 """
 GovernmentJobs.com scraper for security analyst and SOC roles.
 Supports keyword search, pagination, and extracts job details.
+Detects "no jobs found" messages and skips wasted page requests.
 """
 
 import asyncio
@@ -9,12 +10,15 @@ import time
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
 import random
+import json
+import os
 
 # Default location: Sacramento, CA (95826)
 DEFAULT_LOCATION = "95826"
 DEFAULT_DISTANCE = 100
 
 SITE_NAME = "GovernmentJobs.com"
+ZERO_RESULTS_LOG = "governmentjobs_zero_results.json"
 
 
 async def scrape_government_jobs(
@@ -37,6 +41,15 @@ async def scrape_government_jobs(
     """
     jobs = []
     seen_urls = set()
+    zero_results = {}  # Track keywords with no results
+
+    # Load previously tracked zero-result keywords
+    if os.path.exists(ZERO_RESULTS_LOG):
+        try:
+            with open(ZERO_RESULTS_LOG, 'r') as f:
+                zero_results = json.load(f)
+        except:
+            zero_results = {}
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -48,6 +61,8 @@ async def scrape_government_jobs(
 
             page = 1
             consecutive_empty = 0
+            no_results_message_found = False
+
             while page <= max_pages:
                 try:
                     # Build search URL
@@ -67,11 +82,18 @@ async def scrape_government_jobs(
                         html = await resp.text()
                         soup = BeautifulSoup(html, "html.parser")
 
+                        # Check for "no jobs matching" message
+                        if _has_no_results_message(soup):
+                            print("No jobs matching criteria (site message)")
+                            no_results_message_found = True
+                            zero_results[keyword] = time.strftime("%Y-%m-%d")
+                            break
+
                         # Extract jobs from this page
                         page_jobs = _extract_jobs_from_page(soup)
 
                         if not page_jobs:
-                            print("No jobs found on page")
+                            print("No jobs on page")
                             break
 
                         # Filter duplicates by URL
@@ -90,6 +112,9 @@ async def scrape_government_jobs(
                             print(f" (page {consecutive_empty} with no new results)")
                             if consecutive_empty >= 2:
                                 print(f"  Stopping: 2 consecutive pages with no new jobs")
+                                # Track this for future reference
+                                if keyword not in zero_results:
+                                    zero_results[keyword] = time.strftime("%Y-%m-%d")
                                 break
                         else:
                             consecutive_empty = 0
@@ -108,8 +133,42 @@ async def scrape_government_jobs(
                     await asyncio.sleep(2)
                     continue
 
+            # If keyword found 0 results, note it but continue (might have results next week)
+            if no_results_message_found and keyword not in zero_results:
+                zero_results[keyword] = time.strftime("%Y-%m-%d")
+
+    # Save zero-results log for tracking
+    if zero_results:
+        _save_zero_results_log(zero_results)
+
     print(f"\n✅ Scraped {len(jobs)} total jobs from GovernmentJobs.com")
     return jobs
+
+
+def _has_no_results_message(soup: BeautifulSoup) -> bool:
+    """
+    Check if the page contains the "no jobs matching" message.
+    This indicates the search yielded zero results from the site.
+    """
+    no_results_patterns = [
+        "no jobs matching",
+        "no jobs found",
+        "no results",
+        "criteria are accurate, set up job alerts",
+    ]
+
+    page_text = soup.get_text().lower()
+    return any(pattern.lower() in page_text for pattern in no_results_patterns)
+
+
+def _save_zero_results_log(zero_results: dict):
+    """Save keywords with zero results to a tracking file."""
+    try:
+        with open(ZERO_RESULTS_LOG, 'w') as f:
+            json.dump(zero_results, f, indent=2)
+        print(f"\n📋 Zero-result keywords logged to: {ZERO_RESULTS_LOG}")
+    except:
+        pass
 
 
 def _extract_jobs_from_page(soup: BeautifulSoup) -> List[Dict]:
