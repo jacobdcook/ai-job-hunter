@@ -35,14 +35,15 @@ playwright install chromium
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-### 3. Run the setup wizard (Auto-generates config.py & .env)
+### 3. Run setup wizard on first launch
 ```bash
 # Make sure venv is activated (see step 2)
 python main.py
 
-# On first run, you'll see a setup wizard prompt
-# Select option 0) SETUP WIZARD
-# The wizard will guide you through 9 steps:
+# On first run, the app detects missing config and prompts:
+# "Run the setup wizard now? (y/n):"
+# → Select 'y' to start the setup wizard
+# The wizard guides you through 9 steps:
 #   1. Your Background (skills & experience)
 #   2. Search Keywords (job titles to search for)
 #   3. Priority Keywords (high-interest tech terms)
@@ -67,25 +68,26 @@ cp config_template.py config.py
 nano config.py  # or use your preferred editor
 ```
 
-### 4. Groq API Key (Optional if using setup wizard)
-**If you used the setup wizard in Step 3**, your API key was already configured - you can skip this!
+### 4. That's it!
+Your setup is complete. The wizard automatically created:
+- **`config.py`** - Your job search preferences
+- **`.env`** - Your Groq API key(s)
 
-**For manual setup** or **to add multiple API keys later**:
+**To add more API keys later:**
 ```bash
-# Copy the example (optional)
-cp .env.example .env
-
-# Edit your .env file to add/update API keys
+# Edit .env to add additional keys
 nano .env
-# GROQ_API_KEY=your_single_key  (for one account)
-# GROQ_API_KEYS=key1,key2,key3  (for multiple accounts)
-# Get free keys from https://console.groq.com
+# GROQ_API_KEY=key1              (single account)
+# GROQ_API_KEYS=key1,key2,key3   (multiple accounts)
 ```
 
-### 5. Run the job hunter
+### 5. Run job searches
 ```bash
 python main.py
-# Select your options (scrape, analyze, export)
+# Main menu appears with options to:
+# • Scrape jobs from configured sites
+# • Analyze jobs with AI
+# • Export results to Excel
 # Results saved to: jobs_master.xlsx
 ```
 
