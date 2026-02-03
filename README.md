@@ -35,19 +35,28 @@ playwright install chromium
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-### 3. Run the setup wizard (Auto-generates config.py)
+### 3. Run the setup wizard (Auto-generates config.py & .env)
 ```bash
 # Make sure venv is activated (see step 2)
 python main.py
 
 # On first run, you'll see a setup wizard prompt
 # Select option 0) SETUP WIZARD
-# Answer the friendly questions about your background and preferences
-# The wizard will auto-generate config.py for you!
+# The wizard will guide you through 9 steps:
+#   1. Your Background (skills & experience)
+#   2. Search Keywords (job titles to search for)
+#   3. Priority Keywords (high-interest tech terms)
+#   4. Filter Keywords (exclude senior/manager roles)
+#   5. Location (zip code and/or county)
+#   6. Job Sites (select which boards to search)
+#   7. Resume (optional, for better AI matching)
+#   8. Groq API Key (required for AI analysis)
+#   9. Setup Complete!
+# The wizard auto-generates config.py and .env for you!
 # Supports pasting resume/profile text for better AI matching
 ```
 
-**No manual config editing needed!** The setup wizard handles everything.
+**No manual config editing needed!** The setup wizard handles everything, including creating your .env file with your Groq API key.
 
 **Option B: Manual Configuration**
 ```bash
@@ -58,10 +67,19 @@ cp config_template.py config.py
 nano config.py  # or use your preferred editor
 ```
 
-### 4. Add your Groq API key
+### 4. Groq API Key (Optional if using setup wizard)
+**If you used the setup wizard in Step 3**, your API key was already configured - you can skip this!
+
+**For manual setup** or **to add multiple API keys later**:
 ```bash
+# Copy the example (optional)
 cp .env.example .env
-nano .env  # Add your free Groq API key from https://console.groq.com
+
+# Edit your .env file to add/update API keys
+nano .env
+# GROQ_API_KEY=your_single_key  (for one account)
+# GROQ_API_KEYS=key1,key2,key3  (for multiple accounts)
+# Get free keys from https://console.groq.com
 ```
 
 ### 5. Run the job hunter
@@ -127,7 +145,8 @@ GROQ_API_KEY=your_api_key_here
 python3 main.py
 # Select: 0) SETUP WIZARD
 # Answer friendly prompts about your background, skills, and job preferences
-# Wizard generates config.py automatically!
+# The wizard will ask for your Groq API key (free from console.groq.com)
+# Wizard generates config.py and .env automatically!
 # (Optional: Paste your resume for better AI matching)
 ```
 
