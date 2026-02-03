@@ -57,9 +57,9 @@ def save_config():
                 with open('.env', 'r') as f:
                     env_content = f.read()
 
-            # Remove old Groq keys from .env
+            # Remove old Groq keys from .env (preserve other settings like GROQ_MODEL)
             env_lines = [line for line in env_content.split('\n')
-                        if not line.startswith('GROQ_API_KEY')]
+                        if not (line.startswith('GROQ_API_KEY=') or line.startswith('GROQ_API_KEYS='))]
 
             # Add new Groq API keys
             if len(groq_keys) == 1:
