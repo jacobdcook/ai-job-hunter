@@ -13,36 +13,29 @@ from scrapers.commonspirit import scrape_commonspirit_jobs, fetch_commonspirit_d
 from database import init_db, save_job, get_new_jobs, get_new_jobs_as_dicts, update_job_analysis, update_job_failed_analysis, update_job_skip_reason, update_job_title, DB_NAME, reset_failed_analyses, get_jobs_needing_analysis, get_jobs_to_refilter, export_to_excel, generate_job_id
 from ai_analyzer import JobAnalyzer
 from dotenv import load_dotenv
-from config import SEARCH_QUERIES, NOISE_KEYWORDS, ENTRY_LEVEL_INDICATORS, ENABLED_SITES, IGNORE_FIELDS, INTEREST_KEYWORDS
+
+# Try to import config, but handle missing config.py gracefully
 try:
+    from config import SEARCH_QUERIES, NOISE_KEYWORDS, ENTRY_LEVEL_INDICATORS, ENABLED_SITES, IGNORE_FIELDS, INTEREST_KEYWORDS
     from config import TITLE_MUST_CONTAIN, BOGUS_TITLES
-except ImportError:
+    from config import STATE_CA_LOCATION, STATE_CA_KEYWORDS
+    from config import UCDAVIS_KEYWORDS
+    from config import SUTTER_KEYWORDS
+    from config import COMMONSPIRIT_MAX_PAGES
+except ImportError as e:
+    # config.py doesn't exist - will prompt user in main()
+    SEARCH_QUERIES = []
+    NOISE_KEYWORDS = []
+    ENTRY_LEVEL_INDICATORS = []
+    ENABLED_SITES = {}
+    IGNORE_FIELDS = []
+    INTEREST_KEYWORDS = []
     TITLE_MUST_CONTAIN = ["IT", "Tech", "Security", "Cyber", "Analyst", "Engineer", "Developer", "Systems", "Network", "Data", "Software", "Support", "Customer Service", "Help Desk"]
     BOGUS_TITLES = ["train", "trained", "trainers", "trains", "rotation", "rotational"]
-
-# Import State CA config if available
-try:
-    from config import STATE_CA_LOCATION, STATE_CA_KEYWORDS
-except ImportError:
-    STATE_CA_LOCATION = "Sacramento County"  # Default location
+    STATE_CA_LOCATION = "Sacramento County"
     STATE_CA_KEYWORDS = ["Information", "IT", "Security", "Analyst"]
-
-# Import UC Davis config if available
-try:
-    from config import UCDAVIS_KEYWORDS
-except ImportError:
     UCDAVIS_KEYWORDS = ["IT", "Security", "Analyst", "Associate"]
-
-# Import Sutter Health config if available
-try:
-    from config import SUTTER_KEYWORDS
-except ImportError:
     SUTTER_KEYWORDS = ["IT", "Security", "Analyst", "Help Desk", "Systems", "Network", "Cyber", "Infrastructure", "Support", "Technician"]
-
-# Import CommonSpirit Health config if available
-try:
-    from config import COMMONSPIRIT_MAX_PAGES
-except ImportError:
     COMMONSPIRIT_MAX_PAGES = 20
 
 
