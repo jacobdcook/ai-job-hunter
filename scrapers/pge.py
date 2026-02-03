@@ -162,6 +162,10 @@ async def fetch_pge_descriptions_batch(jobs, headless=False):
             description = ""
             try:
                 await page.goto(url, timeout=20000)
+                body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                if "no longer exists" in body_text.lower() or "this job post no longer exists" in body_text.lower():
+                    results[url] = ""
+                    continue
                 selectors = [".job-description", ".ats-description", ".job-info", "#job-details"]
                 for selector in selectors:
                     try:

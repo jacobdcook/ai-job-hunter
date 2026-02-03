@@ -1,5 +1,6 @@
 # Personal data - DO NOT COMMIT
 .env
+groq_keys.txt
 config.py
 jobs.db
 *.xlsx
@@ -51,3 +52,10 @@ kaiser har/
 smud click on job.har
 smud search.har
 calcareershar/
+check_groq_keys.py
+fix_state_ca_titles.py
+groq_keys.txt.example
+line to run.txt
+.cursor/
+filtered_jobs.log
+old master/

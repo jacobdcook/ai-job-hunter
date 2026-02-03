@@ -26,10 +26,13 @@ YOUR_BACKGROUND = """
 # =============================================================================
 # Enable/disable which job sites to search
 ENABLED_SITES = {
-    "pge": True,       # Pacific Gas & Electric
-    "smud": True,      # Sacramento Municipal Utility District
-    "kaiser": True,    # Kaiser Permanente
-    "state_ca": True,  # State of California (CalCareers)
+    "pge": True,           # Pacific Gas & Electric
+    "smud": True,          # Sacramento Municipal Utility District
+    "kaiser": True,        # Kaiser Permanente
+    "state_ca": True,      # State of California (CalCareers)
+    "ucdavis": True,       # UC Davis
+    "sutter": True,        # Sutter Health
+    "commonspirit": True,  # CommonSpirit Health (Dignity Health, CHI)
 }
 
 # Kaiser Permanente specific URLs (Default: California, US)
@@ -54,6 +57,19 @@ STATE_CA_LOCATION = "Sacramento County"
 # These will be searched separately and results combined
 # Note: "Information" tends to return more IT results than just "IT"
 STATE_CA_KEYWORDS = ["Information", "Security", "Analyst", "Systems", "Network", "Cyber"]
+
+# UC Davis keywords
+# Keywords to search on UC Davis careers site
+UCDAVIS_KEYWORDS = ["IT", "Security", "Analyst", "Associate"]
+
+# Sutter Health keywords
+# Keywords to search on Sutter Health careers site
+SUTTER_KEYWORDS = ["IT", "Security", "Analyst", "Help Desk", "Systems", "Network", "Cyber", "Infrastructure", "Support", "Technician"]
+
+# CommonSpirit Health configuration (Dignity Health, CHI, Virginia Mason Franciscan Health)
+# Website: https://www.commonspirit.careers
+# Searches Sacramento area by default (95826 zip code, 50-mile radius)
+COMMONSPIRIT_MAX_PAGES = 20  # Max pages to scrape (11 jobs per page, ~168 total jobs)
 
 # =============================================================================
 # SEARCH QUERIES
@@ -84,31 +100,164 @@ ENTRY_LEVEL_INDICATORS = [
 # This is where you put "Senior", "Manager", etc.
 NOISE_KEYWORDS = ["Senior", "Expert", "Principal", "Lead", "Chief", "Director", "Manager"]
 
-# Ignore these fields entirely.
+# Ignore these fields entirely (substring match, case-insensitive).
 # INSTRUCTIONS: Add any keywords here that you want to IMMEDIATELY discard.
 # If you are looking for medical jobs, REMOVE the medical keywords below.
 IGNORE_FIELDS = [
-    # Default list excludes medical/clinical roles (useful for tech seekers)
-    "Nurse", "Nursing", "Physician", "Medical Assistant", "Social Worker", 
-    "Acupuncturist", "Pharmacist", "Pharmacy", "Therapist", "Social Services",
-    "Patient Care", "Clinical", "LVN", "LPN", "Dietitian", "Surgical", "Imaging",
-    "Radiology", "Anesthesia", "Behavioral Health", "Spiritual Care", "Chaplain",
-    "Pathologist", "Laboratory Assistant", "CLS", "Rad Technologist", "Technologist",
-    "Surg Tech", "Monitor Technician", "Emergency Room", "Cardiac", "Dialysis",
-    "Oncology", "Psychiatric", "Counselor", "Lactation", "Embryologist", "Physic",
-    "Midwife", "Dermatology", "Optometrist", "Ophthalmology", "Dental", "Hygienist",
-    "Veterinary", "Respiratory", "Speech", "Occupational", "Rehabilitation", "Physical Therapist",
-    "Echocardiograph", "Sonographer", "Pediatric", "OB/GYN", "Inpatient", "Outpatient",
-    "Mental Health", "Psychologist", "Psychiatry", "Counseling", "CNA", "Home Health",
-    "Urology", "Obstetrics", "Gynecology", "Surgery", "Perioperative", "Post-op",
-    "Case Manager", "Case Management", "Utilization Review", "QA Nurse",
-    "Chronic Conditions", "Disease Management", "Care Coordinator", "Care Management",
-    "Health Coach", "Health Educator", "Wellness", "Population Health",
-    # Facility/Service Roles
-    "Housekeeping", "Attendant", "Cook", "Kitchen", "Gardener", "Storekeeper",
-    "Ward Clerk", "Admitting Clerk", "Receptionist", 
-    "Administrative Coordinator", "Transcriptionist", "Phlebotomist", "Sterile Processing",
-    "Environmental Services", "EVS", "Security Guard", "Security Officer", "Cashier"
+    # =========================================================================
+    # MEDICAL/CLINICAL - Core Roles & Terms
+    # =========================================================================
+    "Nurse", "Nursing", "Physician", "Medical", "Pharmacist", "Pharmacy",
+    "Therapist", "Therapy", "Clinician", "Dietitian", "Midwife",
+    "Social Worker", "Social Services", "Acupuncturist", "Chaplain",
+    "Medicine",        # Addiction Medicine, Family Medicine, Internal Medicine, etc.
+    "Physic",          # Catches Physicist, Physical Therapist, Physiologist
+    "Clinical",
+
+    # RN patterns (safe - won't false-positive on "intern" like bare "RN" would)
+    "Staff RN", "Charge RN", "Unit RN",
+    # Medical abbreviations
+    "LVN", "LPN", "CNA",
+    "LCSW",            # Licensed Clinical Social Worker
+    "CRNA",            # Certified Registered Nurse Anesthetist
+    "LPCC",            # Licensed Professional Clinical Counselor
+    "LMFT",            # Licensed Marriage Family Therapist
+    "CDRC",            # Chemical Dependency Recovery Counselor
+
+    # =========================================================================
+    # MEDICAL/CLINICAL - Specialties
+    # =========================================================================
+    "Audiolog",        # Audiologist, Audiology
+    "Behavioral Health",
+    "Cardiology", "Cardiologist", "Cardiac", "Cardiovascular",
+    "Dermatology",
+    "Dialysis",
+    "Gastroenterology", "Gastrointestinal",
+    "Gynecology", "OB/GYN", "Obstetrics", "Obstetrical",
+    "Mental Health", "Mental Hlth",
+    "Neonatal",
+    "Oncology",
+    "Ophthalmology", "Ophthalmic",
+    "Optometrist", "Optometric", "Optical",
+    "Orthopedic",
+    "Pediatric",
+    "Psychiatry", "Psychiatric", "Psycholog",  # Psychologist, Psychology, Psychological
+    "Pulmonary",
+    "Radiology", "Radiologic",
+    "Rehabilitation", "Rehab Aide",
+    "Respiratory",
+    "Urology",
+    "Vascular",
+    "Dental", "Hygienist",
+    "Veterinary",
+
+    # =========================================================================
+    # MEDICAL/CLINICAL - Procedures, Departments & Units
+    # =========================================================================
+    "Anesthesia",
+    "Cath Lab",
+    "Emergency Room", "ED Tech",  # Emergency Department Tech
+    "Endoscopy", "Endo Tech",
+    "Hospice", "Palliative",
+    "Home Health",
+    "ICU",
+    "Imaging",
+    "Infusion",
+    "Inpatient", "Outpatient", "Ambulatory",
+    "Labor and Delivery", "Labor & Delivery", "L&D",
+    "Med Surg", "Med/Surg",
+    "NICU", "PICU", "PACU",
+    "Nuclear Medicine",
+    "Operating Room", "OR Tech",  # Operating Room Tech
+    "Perioperative",
+    "Surgical", "Surgery", "Surg Tech",
+    "Transplant",
+    "Wound Care", "Wound Ostomy",
+
+    # =========================================================================
+    # MEDICAL/CLINICAL - Diagnostics, Imaging & Lab
+    # =========================================================================
+    "Echocardiograph", "Sonographer",
+    "EKG", "EEG", "EMG",
+    "Mammograph", "Mammo Tech",
+    "MRI",
+    "Neurodiagnostic",
+    "Bone Dens",       # Bone Densitometry / Bone Density
+    "Angiograph",      # Angiography / Angiogram
+    "Pathologist", "Pathology",
+    "Laboratory Assistant", "Lab Assistant", "Lab Technician",
+    "CLS",             # Clinical Laboratory Scientist
+    "Rad Tech",        # Radiologic Tech (abbreviated) - also catches Rad Technologist
+    "CT Tech",         # CT Scan Technician
+    "Special Procedure",  # Special Procedures is radiology imaging
+    "Technologist",    # All "Technologist" roles in these scrapers are medical
+    "Monitor Technician",
+    "Histolog",        # Histology, Histologic, Histological
+    "Phlebotom",       # Phlebotomist, Phlebotomy
+    "Sterile Processing", "SPD",
+    "Perfusionist",
+    "Dosimetrist",
+    "Embryologist",
+    "Lactation",
+
+    # =========================================================================
+    # MEDICAL/CLINICAL - Programs, Care Management & Conditions
+    # =========================================================================
+    "Patient",         # All "Patient ___" titles are healthcare in these scrapers
+    "Case Manager", "Case Management",
+    "Care Manager", "Care Coordinator", "Care Management", "Care Aide",
+    "Resident Care",   # Nursing home/assisted living
+    "Health Coach", "Health Educator", "Health Education",
+    "Wellness", "Population Health",
+    "Chronic Conditions", "Disease Management",
+    "Utilization Review", "QA Nurse",
+    "Infection Prevent",   # Infection Prevention / Preventionist
+    "Pelvic",
+    "Childbirth", "Prenatal",
+    "Postpartum", "Post Partum", "Perinatal",
+    "Mother Baby", "Mom Baby",
+    "OB Tech",
+    "Substance",       # Substance Use Navigator, etc.
+    "Addiction",        # Addiction Medicine
+    "Child Life",
+    "Cancer Registr",  # Cancer Registrar / Cancer Registry
+    "Contact Lens",
+    "Vision Services",
+    "GI Tech",
+    "Comparative Medicine",
+    "Counselor", "Counseling",
+    "Spiritual Care",
+    "Speech",          # Speech Therapist, Speech Pathologist, etc.
+    "Occupational",    # Occupational Therapist (not IT "Occupational Health")
+    "PT Assist",       # Physical Therapy Assistant
+    "Paramedic", "EMT",  # Emergency Medical Services
+
+    # =========================================================================
+    # FACILITY/SERVICE - Non-Tech Support Roles
+    # =========================================================================
+    "Housekeep",       # Housekeeping, Housekeeper
+    "Attendant", "Cook", "Kitchen",
+    "Gardener", "Storekeeper",
+    "Ward Clerk", "Admitting", "Receptionist",
+    "Administrative Coordinator",
+    "Transcriptionist",
+    "Environmental Services", "EVS",
+    "Security Guard", "Security Officer",
+    "Cashier",
+    "Driver",
+    "Transportation", "Transporter",
+    "Staffing Coordinator",
+    "House Supervisor",    # Hospital nursing supervisor (not IT)
+    "Unit Secretary",
+    "Food Service", "Nutrition",
+    "Executive Assistant", "Executive Chef",
+
+    # =========================================================================
+    # EXECUTIVE/LEADERSHIP - Non-Tech
+    # =========================================================================
+    "Vice President", "SVP",
+    "General Counsel", "Attorney",
+    "Philanthropy", "Donor Relations",
 ]
 
 # High-priority keywords for your background (used for AI pre-filter)
@@ -117,4 +266,21 @@ INTEREST_KEYWORDS = [
     "Cyber", "Security", "IT", "Analyst", "Systems", "Network", "Infrastructure",
     "Data", "Python", "Cloud", "Azure", "Engineering", "Operations", "Technical",
     "Support", "Compliance", "Warehouse", "Logistics", "Hardware", "Diagnostics"
+]
+
+# =============================================================================
+# TITLE PRE-FILTER (before fetching descriptions)
+# =============================================================================
+# Only fetch description / analyze if title contains at least ONE of these (word match).
+# Stops obvious non-tech (e.g. "Food Service Worker") from wasting fetches.
+# Keep broad so you don't miss tech roles; add help desk / customer support.
+TITLE_MUST_CONTAIN = [
+    "IT", "Tech", "Security", "Cyber", "Analyst", "Engineer", "Developer",
+    "Systems", "Network", "Data", "Software", "Support", "Customer Service",
+    "Help Desk", "Compliance", "Infrastructure", "Operations", "Technical"
+]
+
+# Titles that are junk (e.g. search keyword returned as "job" by a scraper). Skip entirely.
+BOGUS_TITLES = [
+    "train", "trained", "trainers", "trains", "rotation", "rotational"
 ]

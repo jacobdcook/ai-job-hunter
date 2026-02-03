@@ -96,6 +96,43 @@ def update_job_analysis(job_id, score, missing_skills, analysis):
     conn.commit()
     conn.close()
 
+
+def update_job_failed_analysis(job_id, error_message, status="rate_limited"):
+    """Mark job as failed (e.g. rate limit) so ANALYZE UNANALYZED will retry it."""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''
+        UPDATE jobs 
+        SET match_score = NULL, analysis = ?, status = ?
+        WHERE id = ?
+    ''', (error_message[:500] if error_message else "Error during analysis", status, job_id))
+    conn.commit()
+    conn.close()
+
+
+def update_job_skip_reason(job_id, reason):
+    """Mark job as skipped with a reason (shows in Excel Notes)."""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''
+        UPDATE jobs 
+        SET status = 'skipped_filter', analysis = ?, match_score = NULL
+        WHERE id = ?
+    ''', (reason[:500] if reason else "Skipped", job_id))
+    conn.commit()
+    conn.close()
+
+
+def update_job_title(job_id, title):
+    """Update a job's title (e.g. after parsing from State CA detail page)."""
+    if not title or not title.strip():
+        return
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("UPDATE jobs SET title = ? WHERE id = ?", (title.strip()[:500], job_id))
+    conn.commit()
+    conn.close()
+
 def get_new_jobs():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -103,6 +140,17 @@ def get_new_jobs():
     rows = c.fetchall()
     conn.close()
     return rows
+
+
+def get_new_jobs_as_dicts():
+    """Get all 'new' status jobs as dictionaries for re-filtering."""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, title, link, location, source FROM jobs WHERE status = 'new'")
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 def reset_failed_analyses():
     """Reset jobs that got score 0 (failed API calls) so they can be re-analyzed."""
@@ -115,13 +163,30 @@ def reset_failed_analyses():
     return affected
 
 def get_jobs_needing_analysis():
-    """Get jobs that are new OR failed previous analysis (score 0)."""
+    """Get jobs that are new, rate_limited, or failed previous analysis (score 0)."""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("SELECT * FROM jobs WHERE status = 'new' OR match_score = 0 OR match_score IS NULL")
+    c.execute("""
+        SELECT * FROM jobs
+        WHERE status IN ('new', 'rate_limited') OR match_score = 0 OR match_score IS NULL
+    """)
     rows = c.fetchall()
     conn.close()
     return rows
+
+def get_jobs_to_refilter():
+    """Get jobs that need to be re-evaluated by the filters (not yet fully analyzed or explicitly skipped)."""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row # Return dict-like rows
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, title, link, location, source FROM jobs
+        WHERE status NOT IN ('analyzed', 'skipped_filter')
+          AND (match_score IS NULL OR match_score = 0)
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 def export_to_excel(filename=None):
     """Export all jobs to an Excel file with tabs per source.
@@ -158,11 +223,21 @@ def export_to_excel(filename=None):
     conn.close()
     
     if df.empty:
-        print("No jobs to export.")
+        print("No jobs to export. Run a scrape first (options 1-9).")
         return None
     
-    # Add priority column based on score
-    def get_priority(score):
+    # Add priority column based on score and status
+    def get_priority(row):
+        score = row['match_score']
+        status = row['status']
+        if status == 'no_description':
+            return "NO DESCRIPTION"
+        if status == 'skipped_filter':
+            return "SKIPPED (see Notes)"
+        if status == 'skipped_ai_title':
+            return "SKIPPED BY AI"
+        if status == 'rate_limited':
+            return "RATE LIMITED (retry later)"
         if pd.isna(score) or score is None:
             return "Not Analyzed"
         elif score >= 8:
@@ -173,16 +248,34 @@ def export_to_excel(filename=None):
             return "LOW PRIORITY 📋"
         else:
             return "SKIP"
-    
-    df['Priority'] = df['match_score'].apply(get_priority)
-    
-    # Reorder columns for better readability (include source)
-    column_order = ['Priority', 'match_score', 'title', 'location', 'source', 'link', 
+
+    df['Priority'] = df.apply(get_priority, axis=1)
+
+    # Add Notes column: why no description / why skipped (so you have context at a glance)
+    def get_notes(row):
+        status = row['status']
+        analysis = row['analysis'] if pd.notna(row['analysis']) and str(row['analysis']).strip() else ""
+        if status == 'skipped_filter' and analysis:
+            return analysis
+        if status == 'skipped_ai_title':
+            return "Skipped by AI (title not relevant to your background)"
+        if status == 'no_description':
+            return "No description (not fetched or job removed from source)"
+        if status == 'rate_limited':
+            return "Rate limit reached (will retry on next ANALYZE UNANALYZED)"
+        if status == 'failed' and analysis:
+            return analysis
+        return ""
+
+    df['Notes'] = df.apply(get_notes, axis=1)
+
+    # Reorder columns for better readability (include source and Notes)
+    column_order = ['Priority', 'Notes', 'match_score', 'title', 'location', 'source', 'link',
                    'missing_skills', 'analysis', 'date_posted', 'last_seen', 'status']
     df = df[column_order]
-    
+
     # Rename columns for cleaner Excel output
-    df.columns = ['Priority', 'Score', 'Job Title', 'Location', 'Source', 'Apply Link', 
+    df.columns = ['Priority', 'Notes', 'Score', 'Job Title', 'Location', 'Source', 'Apply Link',
                   'Missing Skills', 'AI Analysis', 'Date Posted', 'Last Seen (Active)', 'Status']
     
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -226,15 +319,26 @@ def export_to_excel(filename=None):
         'PG&E': 'PG&E',
         'SMUD': 'SMUD',
         'Kaiser Permanente': 'Kaiser',
-        'State of California': 'State CA'
+        'State of California': 'State CA',
+        'Sutter Health': 'Sutter',
+        'UC Davis': 'UC Davis',
     }
     
     # Create Excel writer with multiple sheets
     with pd.ExcelWriter(filename, engine='openpyxl') as writer:
         # Write All Jobs tab
         df.to_excel(writer, sheet_name='All Jobs', index=False)
-        format_worksheet(writer.sheets['All Jobs'], link_col_idx=5)
-        
+        format_worksheet(writer.sheets['All Jobs'], link_col_idx=6)
+
+        # Top matches (score >= 7) for quick apply
+        df_top = df[df['Score'].notna() & (df['Score'] >= 7)].copy()
+        if not df_top.empty:
+            df_top.to_excel(writer, sheet_name='Top matches (7+)', index=False)
+            format_worksheet(writer.sheets['Top matches (7+)'], link_col_idx=6)
+            tabs_created_top = [f"Top matches (7+) ({len(df_top)})"]
+        else:
+            tabs_created_top = []
+
         # Create a tab for each unique source
         tabs_created = []
         for source in unique_sources:
@@ -248,10 +352,10 @@ def export_to_excel(filename=None):
             # Use mapped name or clean up the source name for tab
             tab_name = tab_name_map.get(source, source.replace(' ', '_')[:31])  # Excel tab name limit is 31 chars
             df_source.to_excel(writer, sheet_name=tab_name, index=False)
-            format_worksheet(writer.sheets[tab_name], link_col_idx=5)
+            format_worksheet(writer.sheets[tab_name], link_col_idx=6)
             tabs_created.append(f"{tab_name} ({len(df_source)})")
     
     print(f"\n✅ Exported {len(df)} jobs to: {filename}")
-    tabs_list = [f"All Jobs ({len(df)})"] + tabs_created
+    tabs_list = [f"All Jobs ({len(df)})"] + tabs_created_top + tabs_created
     print(f"   Tabs: {', '.join(tabs_list)}")
     return filename

@@ -21,21 +21,30 @@
    - **Status**: Fully implemented with AI pre-filtering and bot protection
    - **Features**: Full location scrape, 10-second delays, IP block detection
 
-3. **UC Davis** (`ucdavis`) ⏳ TODO
-   - **URL**: https://careers.ucdavis.edu/
+3. **UC Davis** (`ucdavis`) ⚠️ IMPLEMENTED — CLOUDFLARE BLOCK
+   - **URL**: https://hr.ucdavis.edu/careers/apply
    - **Why**: University IT/security, Davis location, good benefits
-   - **Search**: "IT", "Security", "Analyst", "Associate"
-   - **Location**: Davis, Sacramento, Remote
-   - **Difficulty**: Medium (university job portal)
-   - **Notes**: May use PageUp or similar ATS
+   - **Search**: Configurable keywords (default: IT, Security, Analyst, Associate)
+   - **Location**: Davis, Sacramento, Remote (all locations)
+   - **Features**: 
+     - Keyword-based search via URL params
+     - Pagination handling (clicks "Next" button)
+     - 10+ second delays between requests
+   - **Config**: Set `UCDAVIS_KEYWORDS` in config.py
+   - **Limitation**: UC Davis uses **Cloudflare** and often blocks automated/headless requests. Run with **browser visible** (`headless=False`) from your own machine; if you still get 0 jobs, the IP may be blocked. Use "UC Davis only" (option 5) to test.
 
-4. **Sutter Health** (`sutter`) ⏳ TODO
-   - **URL**: https://www.sutterhealth.org/about/careers
+4. **Sutter Health** (`sutter`) ✅ DONE
+   - **URL**: https://jobs.sutterhealth.org/
    - **Why**: Healthcare IT/security, Sacramento area
-   - **Search**: "IT", "Security", "Analyst"
-   - **Location**: Sacramento, Remote
-   - **Difficulty**: Medium
-   - **Notes**: Check if they use Workday, Taleo, or custom ATS
+   - **Platform**: Phenom People (server-side rendered)
+   - **Search**: Configurable keywords (default: IT, Security, Analyst, Help Desk)
+   - **Features**:
+     - Pure HTTP (aiohttp) -- no browser needed
+     - Job data embedded in HTML as `phApp.ddo` JSON
+     - Pagination via `?keywords={kw}&from={offset}&s=1` (10 per page, fixed)
+     - Full descriptions from detail pages via `phApp.ddo.jobDetail.data.job.description`
+     - 2-3 second delays between requests
+   - **Config**: Set `SUTTER_KEYWORDS` in config.py
 
 ### 📋 MEDIUM PRIORITY
 

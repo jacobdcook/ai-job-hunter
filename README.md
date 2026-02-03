@@ -68,28 +68,65 @@ After running, you'll have:
 
 ## Configuration
 
-### `config.py`
+### `config.py` - Key Settings to Customize
 
-| Variable | Description |
-|----------|-------------|
-| `YOUR_BACKGROUND` | Your education, skills, projects, and target roles |
-| `SEARCH_QUERIES` | Keywords to search for on PG&E/SMUD |
-| `KAISER_LOCATION_URL` | The specific location search URL for Kaiser Permanente |
-| `STATE_CA_LOCATION` | Location name for State CA ("Sacramento County", "Los Angeles County", None=all) |
-| `STATE_CA_KEYWORDS` | Keywords to search on CalCareers (e.g., IT, Security, Analyst) |
-| `ENTRY_LEVEL_INDICATORS` | Words that mark a job as entry-level (always kept) |
-| `NOISE_KEYWORDS` | Words that filter out senior roles |
-| `IGNORE_FIELDS` | Massive list of keywords to ignore (e.g., Clinical, Medical) |
-| `INTEREST_KEYWORDS` | Priority keywords for your tech background (used for AI scanning) |
-| `ENABLED_SITES` | Toggle which job sites to search |
+**Start with these (modify for your situation):**
 
-### `.env`
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `YOUR_BACKGROUND` | ⭐ **YOUR PROFILE** - Describe your skills, experience, target roles | "5 years Python, Azure security, Linux" |
+| `SEARCH_QUERIES` | Keywords to search (PG&E, SMUD, etc.) | `["IT", "Security", "Network"]` |
+| `INTEREST_KEYWORDS` | High-priority tech terms your background matches | `["Cyber", "Security", "Python", "Cloud"]` |
+| `NOISE_KEYWORDS` | Filter out senior/mgmt roles you don't want | `["Senior", "Manager", "Director"]` |
+| `IGNORE_FIELDS` | **AVOID THESE** - Clinical, medical, non-tech roles | `["Nurse", "RN", "Doctor"]` - 150+ pre-configured |
+
+**Advanced settings (location-specific):**
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `STATE_CA_LOCATION` | CA state jobs: filter by county | `"Sacramento County"` or `None` for all |
+| `STATE_CA_KEYWORDS` | CA state search keywords | `["IT", "Analyst", "Systems"]` |
+| `KAISER_LOCATION_URL` | Kaiser: change location search URL | Modify the URL with your target county |
+| `ENABLED_SITES` | Toggle which job sites to search | Set to `True`/`False` |
+| `ENTRY_LEVEL_INDICATORS` | Mark jobs as entry-level to keep | `["Junior", "Intern", "Entry"]` |
+
+### `.env` - API Keys
 
 ```
 GROQ_API_KEY=your_api_key_here
 ```
 
-Get a free API key at [console.groq.com](https://console.groq.com)
+**Get a free Groq API key:**
+1. Go to [console.groq.com](https://console.groq.com)
+2. Sign up for free
+3. Create an API key
+4. Add it to your `.env` file
+
+### Customization Quick Guide
+
+**Simplest setup (5 minutes):**
+```bash
+# 1. Copy config template
+cp config_template.py config.py
+
+# 2. Edit config.py - change ONLY these two sections:
+#    - YOUR_BACKGROUND: Describe your skills in 2-3 sentences
+#    - IGNORE_FIELDS: Add any job titles you want to skip (optional)
+
+# 3. Copy .env template
+cp .env.example .env
+
+# 4. Add your GROQ_API_KEY to .env
+
+# 5. Run!
+python3 main.py
+```
+
+That's it! The tool will:
+- ✅ Scrape multiple job sites
+- ✅ Filter out irrelevant roles automatically
+- ✅ Use AI to score matches
+- ✅ Save to `jobs_master.xlsx`
 
 ## Supported Job Sites
 
@@ -99,6 +136,9 @@ Get a free API key at [console.groq.com](https://console.groq.com)
 | SMUD | ✅ Working | Sacramento Municipal Utility District |
 | Kaiser | ✅ Working | Kaiser Permanente (Full Location Scrape) |
 | State CA | ✅ Working | State of California (CalCareers) - configurable county |
+| CommonSpirit | ✅ Working | CommonSpirit Health (Dignity Health, CHI, Virginia Mason) |
+| Sutter Health | ✅ Working | Sutter Health hospitals |
+| UC Davis | ✅ Working | UC Davis Health & administration |
 
 ## Commands
 
