@@ -30,7 +30,17 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 3. Configure your profile
+### 3. Configure your profile (Two options)
+
+**Option A: Interactive Setup Wizard (Recommended for first-time setup)**
+```bash
+python3 main.py
+# Select option 0) SETUP WIZARD
+# Answer the prompts - it will generate config.py for you automatically
+# Supports pasting resume text!
+```
+
+**Option B: Manual Configuration**
 ```bash
 # Copy the template
 cp config_template.py config.py
@@ -104,29 +114,20 @@ GROQ_API_KEY=your_api_key_here
 
 ### Customization Quick Guide
 
-**Simplest setup (5 minutes):**
+**Fastest setup (2-3 minutes with Setup Wizard):**
 ```bash
-# 1. Copy config template
-cp config_template.py config.py
-
-# 2. Edit config.py - change ONLY these two sections:
-#    - YOUR_BACKGROUND: Describe your skills in 2-3 sentences
-#    - IGNORE_FIELDS: Add any job titles you want to skip (optional)
-
-# 3. Copy .env template
-cp .env.example .env
-
-# 4. Add your GROQ_API_KEY to .env
-
-# 5. Run!
 python3 main.py
+# Select: 0) SETUP WIZARD
+# Answer friendly prompts about your background, skills, and job preferences
+# Wizard generates config.py automatically!
+# (Optional: Paste your resume for better AI matching)
 ```
 
-That's it! The tool will:
-- ✅ Scrape multiple job sites
+**That's it!** After setup, the tool will:
+- ✅ Scrape multiple job sites based on your preferences
 - ✅ Filter out irrelevant roles automatically
-- ✅ Use AI to score matches
-- ✅ Save to `jobs_master.xlsx`
+- ✅ Use AI to score each job's match to your background
+- ✅ Save results to `jobs_master.xlsx` with clickable apply links
 
 ## Supported Job Sites
 

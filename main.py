@@ -1,6 +1,8 @@
 import asyncio
 import os
 import sqlite3
+import sys
+from setup_wizard import run_setup_wizard
 from scrapers.pge import scrape_pge_jobs, fetch_pge_descriptions_batch
 from scrapers.smud import scrape_smud_jobs, fetch_smud_descriptions_batch, scrape_all_smud_jobs
 from scrapers.kaiser import scrape_kaiser_jobs, fetch_kaiser_descriptions_batch, scrape_all_kaiser_jobs
@@ -191,6 +193,7 @@ def select_sites():
     print("        🎯 AI JOB HUNTER - Multi-Site Job Search")
     print("="*60)
     print("\nSelect options:")
+    print("  0) 🆕 SETUP WIZARD (Configure your profile)")
     print("  1) PG&E only")
     print("  2) SMUD only")
     print("  3) Kaiser Permanente only")
@@ -207,8 +210,12 @@ def select_sites():
     all_false = {"pge": False, "smud": False, "kaiser": False, "state_ca": False, "ucdavis": False, "sutter": False, "commonspirit": False}
 
     while True:
-        choice = input("\nEnter choice (1-12): ").strip()
-        if choice == "1":
+        choice = input("\nEnter choice (0-12): ").strip()
+        if choice == "0":
+            # Run setup wizard and return to menu
+            run_setup_wizard()
+            return select_sites()  # Restart menu
+        elif choice == "1":
             return {**all_false, "pge": True}, "scrape"
         elif choice == "2":
             return {**all_false, "smud": True}, "scrape"
@@ -233,7 +240,7 @@ def select_sites():
         elif choice == "12":
             return {}, "unanalyzed"
         else:
-            print("Invalid choice. Please enter 1-12.")
+            print("Invalid choice. Please enter 0-12.")
 
 
 async def main():
