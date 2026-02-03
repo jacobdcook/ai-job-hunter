@@ -4,7 +4,12 @@ import re
 import time
 from groq import Groq, RateLimitError
 from dotenv import load_dotenv
-from config import YOUR_BACKGROUND
+
+# Try to import config, but handle missing config.py gracefully
+try:
+    from config import YOUR_BACKGROUND
+except ImportError:
+    YOUR_BACKGROUND = "Configuration not yet set. Run setup wizard first."
 
 load_dotenv()
 
