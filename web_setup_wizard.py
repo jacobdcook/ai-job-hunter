@@ -121,9 +121,13 @@ UCDAVIS_MAX_PAGES = 20
 '''
 
     try:
-        # Replace JSON null with Python None (handles both ': null' and '= null')
+        # Convert JSON syntax to Python syntax
         config_content = config_content.replace(': null', ': None')
         config_content = config_content.replace('= null', '= None')
+        config_content = config_content.replace(': true', ': True')
+        config_content = config_content.replace(': false', ': False')
+        config_content = config_content.replace('true,', 'True,')
+        config_content = config_content.replace('false,', 'False,')
         with open('config.py', 'w') as f:
             f.write(config_content)
         return jsonify({'success': True, 'message': 'Configuration saved successfully!'})
