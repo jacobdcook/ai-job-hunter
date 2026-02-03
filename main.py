@@ -244,11 +244,29 @@ def select_sites():
 
 
 async def main():
+    # 0. Check if config.py exists - if not, run setup wizard
+    if not os.path.exists("config.py"):
+        print("\n" + "="*70)
+        print("⚠️  config.py not found!")
+        print("="*70)
+        print("\nWelcome to AI Job Hunter! Let's set up your profile.\n")
+
+        run_setup = input("Run the setup wizard now? (y/n): ").strip().lower()
+        if run_setup in ['y', 'yes']:
+            run_setup_wizard()
+            print("\n✅ Setup complete! Now restart the app: python main.py\n")
+            sys.exit(0)
+        else:
+            print("\nYou can manually set up by copying the template:")
+            print("  cp config_template.py config.py")
+            print("  # Then edit config.py with your preferences\n")
+            sys.exit(1)
+
     # 1. Initialize
     load_dotenv()
     init_db()
     analyzer = JobAnalyzer()
-    
+
     # 2. Site Selection Menu
     selected_sites, mode = select_sites()
 

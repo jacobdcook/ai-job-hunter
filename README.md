@@ -22,7 +22,7 @@ git clone https://github.com/YOUR_USERNAME/ai-job-hunter.git
 cd ai-job-hunter
 ```
 
-### 2. Set up Python environment
+### 2. Set up Python environment & install dependencies
 ```bash
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -30,15 +30,24 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 3. Configure your profile (Two options)
-
-**Option A: Interactive Setup Wizard (Recommended for first-time setup)**
+⚠️ **IMPORTANT: Keep the venv activated!** Every time you open a new terminal, run:
 ```bash
-python3 main.py
-# Select option 0) SETUP WIZARD
-# Answer the prompts - it will generate config.py for you automatically
-# Supports pasting resume text!
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
+
+### 3. Run the setup wizard (Auto-generates config.py)
+```bash
+# Make sure venv is activated (see step 2)
+python main.py
+
+# On first run, you'll see a setup wizard prompt
+# Select option 0) SETUP WIZARD
+# Answer the friendly questions about your background and preferences
+# The wizard will auto-generate config.py for you!
+# Supports pasting resume/profile text for better AI matching
+```
+
+**No manual config editing needed!** The setup wizard handles everything.
 
 **Option B: Manual Configuration**
 ```bash
@@ -49,18 +58,17 @@ cp config_template.py config.py
 nano config.py  # or use your preferred editor
 ```
 
-### 4. Set up your API key
+### 4. Add your Groq API key
 ```bash
-# Copy the example env file
 cp .env.example .env
-
-# Add your Groq API key (free at https://console.groq.com)
-nano .env
+nano .env  # Add your free Groq API key from https://console.groq.com
 ```
 
 ### 5. Run the job hunter
 ```bash
-python3 main.py
+python main.py
+# Select your options (scrape, analyze, export)
+# Results saved to: jobs_master.xlsx
 ```
 
 ## Output
