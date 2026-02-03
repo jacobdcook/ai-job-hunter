@@ -270,6 +270,29 @@
             color: #666;
         }
 
+        .hint button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+            font-weight: 600;
+        }
+
+        .hint button:hover {
+            background: #5568d3;
+        }
+
+        .location-note {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+            font-style: italic;
+        }
+
         .loading {
             text-align: center;
             padding: 30px;
@@ -319,9 +342,9 @@
                 <div class="step-title">🔍 Search Keywords</div>
                 <div class="step-subtitle">What job titles should we search for?</div>
                 <div class="form-group">
-                    <label>Keywords (press Enter to add):</label>
+                    <label>Keywords (type and press Enter):</label>
                     <div class="tag-input" id="searchKeywordsInput">
-                        <input type="text" placeholder="Type keyword and press Enter..." onkeypress="addTag(event, 'searchKeywords')">
+                        <input type="text" placeholder="Type keyword and press Enter...">
                     </div>
                 </div>
             </div>
@@ -331,9 +354,13 @@
                 <div class="step-title">⭐ Priority Keywords</div>
                 <div class="step-subtitle">Jobs matching these get priority (even if Senior/Manager)</div>
                 <div class="form-group">
-                    <label>Priority keywords (press Enter to add):</label>
+                    <label>Priority keywords (type and press Enter):</label>
                     <div class="tag-input" id="interestKeywordsInput">
-                        <input type="text" placeholder="e.g., Security, Python, Cloud..." onkeypress="addTag(event, 'interestKeywords')">
+                        <input type="text" placeholder="e.g., Security, Python, Cloud...">
+                    </div>
+                    <div class="hint">
+                        <strong>Need examples?</strong>
+                        <button type="button" onclick="useDefaultKeywords('interest')">Use Common Examples</button>
                     </div>
                 </div>
             </div>
@@ -343,9 +370,13 @@
                 <div class="step-title">🚫 Filter Out</div>
                 <div class="step-subtitle">Jobs with these keywords will be skipped</div>
                 <div class="form-group">
-                    <label>Filter keywords (press Enter to add):</label>
+                    <label>Filter keywords (type and press Enter):</label>
                     <div class="tag-input" id="noiseKeywordsInput">
-                        <input type="text" placeholder="e.g., Senior, Manager, Director..." onkeypress="addTag(event, 'noiseKeywords')">
+                        <input type="text" placeholder="e.g., Senior, Manager, Director...">
+                    </div>
+                    <div class="hint">
+                        <strong>Need examples?</strong>
+                        <button type="button" onclick="useDefaultKeywords('noise')">Keep Common Examples</button>
                     </div>
                 </div>
             </div>
@@ -353,10 +384,16 @@
             <!-- Step 5: Location -->
             <div class="step" id="step5">
                 <div class="step-title">📍 Location</div>
-                <div class="step-subtitle">Where do you want to search?</div>
+                <div class="step-subtitle">Configure location for job searches</div>
                 <div class="form-group">
-                    <label>California County (optional):</label>
-                    <input type="text" id="location" placeholder="e.g., Sacramento County, Los Angeles County, or leave blank for all CA">
+                    <label>Zip Code (for CommonSpirit Health):</label>
+                    <input type="text" id="locationZip" placeholder="e.g., 95826">
+                    <div class="location-note">Leave blank to search all California</div>
+                </div>
+                <div class="form-group">
+                    <label>County (for State of California):</label>
+                    <input type="text" id="locationCounty" placeholder="e.g., Sacramento County">
+                    <div class="location-note">Leave blank to search all California</div>
                 </div>
             </div>
 
@@ -413,7 +450,7 @@
             <div class="step" id="step8">
                 <div class="success-message" id="successMessage">
                     <h2>✅ Setup Complete!</h2>
-                    <p>Your configuration has been saved. The app will now start.</p>
+                    <p>Your configuration has been saved. Closing wizard...</p>
                 </div>
                 <div class="loading" id="loadingMessage" style="display: none;">
                     <div class="spinner"></div>
@@ -447,9 +484,7 @@
         fetch('/api/defaults')
             .then(r => r.json())
             .then(d => {
-                data.interest_keywords = d.interest_keywords;
-                data.noise_keywords = d.noise_keywords;
-                data.ignore_fields = d.ignore_fields;
+                data.ignore_fields = d.all_ignore_fields;
                 updateUI();
             });
 
@@ -477,7 +512,8 @@
             if (currentStep === 1) {
                 data.background = document.getElementById('background').value;
             } else if (currentStep === 5) {
-                data.locations.state_ca = document.getElementById('location').value || null;
+                data.locations.zip = document.getElementById('locationZip').value || null;
+                data.locations.county = document.getElementById('locationCounty').value || null;
             } else if (currentStep === 6) {
                 ['pge', 'smud', 'kaiser', 'state_ca', 'commonspirit', 'sutter', 'ucdavis'].forEach(site => {
                     data.sites[site] = document.getElementById(`site_${site}`).checked;
@@ -500,21 +536,37 @@
             input.placeholder = 'Add more...';
             input.onkeypress = (e) => {
                 if (e.key === 'Enter') {
+                    e.preventDefault();
                     const value = e.target.value.trim();
                     if (value) {
                         if (container.id === 'searchKeywordsInput') {
-                            data.search_keywords.push(value);
+                            if (!data.search_keywords.includes(value)) {
+                                data.search_keywords.push(value);
+                            }
                         } else if (container.id === 'interestKeywordsInput') {
-                            data.interest_keywords.push(value);
+                            if (!data.interest_keywords.includes(value)) {
+                                data.interest_keywords.push(value);
+                            }
                         } else if (container.id === 'noiseKeywordsInput') {
-                            data.noise_keywords.push(value);
+                            if (!data.noise_keywords.includes(value)) {
+                                data.noise_keywords.push(value);
+                            }
                         }
                         e.target.value = '';
                         renderTags(container, getTagsForContainer(container.id));
+                        // Auto-focus input for continuous entry
+                        setTimeout(() => {
+                            const inputs = container.querySelectorAll('input');
+                            if (inputs.length > 0) {
+                                inputs[inputs.length - 1].focus();
+                            }
+                        }, 0);
                     }
                 }
             };
             container.appendChild(input);
+            // Auto-focus the input
+            input.focus();
         }
 
         function getTagsForContainer(id) {
@@ -524,27 +576,26 @@
             return [];
         }
 
-        function addTag(e, type) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const value = e.target.value.trim();
-                if (value) {
-                    if (type === 'searchKeywords') {
-                        data.search_keywords.push(value);
-                        renderTags(document.getElementById('searchKeywordsInput'), data.search_keywords);
-                    } else if (type === 'interestKeywords') {
-                        data.interest_keywords.push(value);
-                        renderTags(document.getElementById('interestKeywordsInput'), data.interest_keywords);
-                    } else if (type === 'noiseKeywords') {
-                        data.noise_keywords.push(value);
-                        renderTags(document.getElementById('noiseKeywordsInput'), data.noise_keywords);
-                    }
-                }
-            }
-        }
-
         function removeTag(btn) {
             btn.parentElement.remove();
+        }
+
+        function useDefaultKeywords(type) {
+            if (type === 'interest') {
+                fetch('/api/defaults')
+                    .then(r => r.json())
+                    .then(d => {
+                        data.interest_keywords = [...new Set([...data.interest_keywords, ...d.interest_keywords])];
+                        renderTags(document.getElementById('interestKeywordsInput'), data.interest_keywords);
+                    });
+            } else if (type === 'noise') {
+                fetch('/api/defaults')
+                    .then(r => r.json())
+                    .then(d => {
+                        data.noise_keywords = [...new Set([...data.noise_keywords, ...d.noise_keywords])];
+                        renderTags(document.getElementById('noiseKeywordsInput'), data.noise_keywords);
+                    });
+            }
         }
 
         function nextStep() {
@@ -567,7 +618,8 @@
         async function finishSetup() {
             // Collect final data
             data.background = document.getElementById('background').value;
-            data.locations.state_ca = document.getElementById('location').value || null;
+            data.locations.zip = document.getElementById('locationZip').value || null;
+            data.locations.county = document.getElementById('locationCounty').value || null;
             data.resume = document.getElementById('resume').value;
             ['pge', 'smud', 'kaiser', 'state_ca', 'commonspirit', 'sutter', 'ucdavis'].forEach(site => {
                 data.sites[site] = document.getElementById(`site_${site}`).checked;
@@ -588,16 +640,15 @@
                     document.getElementById('loadingMessage').style.display = 'none';
                     document.getElementById('successMessage').style.display = 'block';
                     document.getElementById('btnFinish').disabled = true;
-                    document.getElementById('btnFinish').textContent = 'Setup Complete!';
 
-                    // Close after 3 seconds
+                    // Close after 2 seconds and signal server to shutdown
                     setTimeout(() => {
+                        fetch('/api/shutdown', { method: 'POST' });
                         window.close();
-                        setTimeout(() => location.reload(), 100);
-                    }, 3000);
+                    }, 2000);
                 }
             } catch (e) {
-                alert('Error saving configuration: ' + e);
+                alert('Error: ' + e);
             }
         }
 
