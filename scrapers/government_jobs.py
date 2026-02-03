@@ -47,6 +47,7 @@ async def scrape_government_jobs(
             print(f"\n🔍 Searching GovernmentJobs: '{keyword}' near {location}")
 
             page = 1
+            consecutive_empty = 0
             while page <= max_pages:
                 try:
                     # Build search URL
@@ -70,7 +71,7 @@ async def scrape_government_jobs(
                         page_jobs = _extract_jobs_from_page(soup)
 
                         if not page_jobs:
-                            print("No more jobs found")
+                            print("No jobs found on page")
                             break
 
                         # Filter duplicates by URL
@@ -81,7 +82,18 @@ async def scrape_government_jobs(
                                 seen_urls.add(job["link"])
                                 new_jobs += 1
 
-                        print(f"Found {new_jobs} new jobs")
+                        print(f"Found {new_jobs} new jobs", end="")
+
+                        # Stop if no new jobs found (all were duplicates)
+                        if new_jobs == 0:
+                            consecutive_empty += 1
+                            print(f" (page {consecutive_empty} with no new results)")
+                            if consecutive_empty >= 2:
+                                print(f"  Stopping: 2 consecutive pages with no new jobs")
+                                break
+                        else:
+                            consecutive_empty = 0
+                            print()
 
                         # Rate limiting
                         await asyncio.sleep(random.uniform(2, 4))
