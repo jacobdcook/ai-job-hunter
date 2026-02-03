@@ -446,8 +446,32 @@
                 </div>
             </div>
 
-            <!-- Step 8: Complete -->
+            <!-- Step 8: Groq API Key -->
             <div class="step" id="step8">
+                <div class="step-title">🔑 Groq API Key</div>
+                <div class="step-subtitle">Required for AI job matching and analysis</div>
+                <div class="form-group">
+                    <label>API Key(s) (type and press Enter):</label>
+                    <div class="tag-input" id="groqKeysInput">
+                        <input type="text" placeholder="Paste your Groq API key and press Enter...">
+                    </div>
+                    <div class="hint">
+                        <strong>Don't have a key?</strong> Get a free Groq API key in 2 minutes:
+                        <ol style="margin: 10px 0 0 20px; font-size: 12px;">
+                            <li>Go to <strong>console.groq.com</strong></li>
+                            <li>Sign up for free</li>
+                            <li>Create an API key</li>
+                            <li>Paste it above</li>
+                        </ol>
+                        <div style="margin-top: 12px; font-size: 12px; color: #555;">
+                            <strong>Multiple keys?</strong> You can add multiple API keys if you have multiple accounts.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 9: Complete -->
+            <div class="step" id="step9">
                 <div class="success-message" id="successMessage">
                     <h2>✅ Setup Complete!</h2>
                     <p>Your configuration has been saved to <strong>config.py</strong></p>
@@ -469,7 +493,7 @@
 
     <script>
         let currentStep = 1;
-        const totalSteps = 8;
+        const totalSteps = 9;
         const data = {
             background: '',
             search_keywords: [],
@@ -478,7 +502,8 @@
             ignore_fields: [],
             locations: {},
             sites: {},
-            resume: ''
+            resume: '',
+            groq_api_keys: []
         };
 
         // Load defaults
@@ -521,6 +546,10 @@
                 });
             } else if (currentStep === 7) {
                 data.resume = document.getElementById('resume').value;
+            } else if (currentStep === 8) {
+                // Collect Groq API keys - they're stored as tags
+                const keyTags = document.querySelectorAll('#groqKeysInput .tag');
+                data.groq_api_keys = Array.from(keyTags).map(tag => tag.textContent.replace('×', '').trim());
             }
         }
 
@@ -570,6 +599,43 @@
             input.focus();
         }
 
+        function renderGroqKeys() {
+            const container = document.getElementById('groqKeysInput');
+            container.innerHTML = '';
+            data.groq_api_keys.forEach(key => {
+                const tagEl = document.createElement('div');
+                tagEl.className = 'tag';
+                const displayKey = key.substring(0, 20) + '...'; // Show first 20 chars
+                tagEl.innerHTML = `${displayKey} <button type="button" onclick="removeTag(this)">×</button>`;
+                container.appendChild(tagEl);
+            });
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Paste your Groq API key and press Enter...';
+            input.onkeypress = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const value = e.target.value.trim();
+                    if (value) {
+                        if (!data.groq_api_keys.includes(value)) {
+                            data.groq_api_keys.push(value);
+                        }
+                        e.target.value = '';
+                        renderGroqKeys();
+                        // Auto-focus input for continuous entry
+                        setTimeout(() => {
+                            const inputs = container.querySelectorAll('input');
+                            if (inputs.length > 0) {
+                                inputs[inputs.length - 1].focus();
+                            }
+                        }, 0);
+                    }
+                }
+            };
+            container.appendChild(input);
+            input.focus();
+        }
+
         function getTagsForContainer(id) {
             if (id === 'searchKeywordsInput') return data.search_keywords;
             if (id === 'interestKeywordsInput') return data.interest_keywords;
@@ -606,6 +672,7 @@
                 if (currentStep === 2) renderTags(document.getElementById('searchKeywordsInput'), data.search_keywords);
                 if (currentStep === 3) renderTags(document.getElementById('interestKeywordsInput'), data.interest_keywords);
                 if (currentStep === 4) renderTags(document.getElementById('noiseKeywordsInput'), data.noise_keywords);
+                if (currentStep === 8) renderGroqKeys();
             }
         }
 
@@ -622,6 +689,17 @@
             data.locations.zip = document.getElementById('locationZip').value || null;
             data.locations.county = document.getElementById('locationCounty').value || null;
             data.resume = document.getElementById('resume').value;
+
+            // Collect Groq API keys
+            const keyTags = document.querySelectorAll('#groqKeysInput .tag');
+            data.groq_api_keys = Array.from(keyTags).map(tag => tag.textContent.replace('×', '').trim());
+
+            // Validate that at least one API key is provided
+            if (data.groq_api_keys.length === 0) {
+                alert('⚠️ Please add at least one Groq API key to continue. You need this for AI job analysis.');
+                return;
+            }
+
             ['pge', 'smud', 'kaiser', 'state_ca', 'commonspirit', 'sutter', 'ucdavis'].forEach(site => {
                 data.sites[site] = document.getElementById(`site_${site}`).checked;
             });

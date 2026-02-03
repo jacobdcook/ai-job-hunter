@@ -44,9 +44,37 @@ def get_defaults():
 
 @app.route('/api/save-config', methods=['POST'])
 def save_config():
-    """Save the configuration to config.py."""
+    """Save the configuration to config.py and .env."""
     global setup_data
     setup_data = request.json
+
+    # Save Groq API keys to .env file
+    groq_keys = setup_data.get('groq_api_keys', [])
+    if groq_keys:
+        try:
+            env_content = ''
+            if os.path.exists('.env'):
+                with open('.env', 'r') as f:
+                    env_content = f.read()
+
+            # Remove old Groq keys from .env
+            env_lines = [line for line in env_content.split('\n')
+                        if not line.startswith('GROQ_API_KEY')]
+
+            # Add new Groq API keys
+            if len(groq_keys) == 1:
+                env_lines.append(f'GROQ_API_KEY={groq_keys[0]}')
+            else:
+                # Multiple keys - add them as a comma-separated list
+                env_lines.append(f'GROQ_API_KEYS={",".join(groq_keys)}')
+                # Also add the first key as GROQ_API_KEY for backward compatibility
+                env_lines.append(f'GROQ_API_KEY={groq_keys[0]}')
+
+            # Write back to .env
+            with open('.env', 'w') as f:
+                f.write('\n'.join(env_lines).strip() + '\n')
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Failed to save API keys: {str(e)}'}), 500
 
     # Prepare location variables
     state_ca_location = setup_data.get('locations', {}).get('county') or None
