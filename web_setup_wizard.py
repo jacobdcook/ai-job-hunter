@@ -10,6 +10,7 @@ import json
 import webbrowser
 import threading
 import time
+import signal
 from flask import Flask, render_template, request, jsonify
 from config_template import (
     ENTRY_LEVEL_INDICATORS, NOISE_KEYWORDS, IGNORE_FIELDS,
@@ -131,10 +132,10 @@ UCDAVIS_MAX_PAGES = 20
 def shutdown():
     """Shutdown the Flask server gracefully."""
     def stop_server():
-        time.sleep(1)
-        os._exit(0)
+        time.sleep(0.5)  # Give response time to send
+        os.kill(os.getpid(), signal.SIGTERM)
 
-    thread = threading.Thread(target=stop_server, daemon=True)
+    thread = threading.Thread(target=stop_server, daemon=False)
     thread.start()
     return jsonify({'success': True})
 
