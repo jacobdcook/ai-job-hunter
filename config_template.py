@@ -68,7 +68,7 @@ SUTTER_KEYWORDS = ["IT", "Security", "Analyst", "Help Desk", "Systems", "Network
 
 # CommonSpirit Health configuration (Dignity Health, CHI, Virginia Mason Franciscan Health)
 # Website: https://www.commonspirit.careers
-# Searches Sacramento area by default (95826 zip code, 50-mile radius)
+COMMONSPIRIT_ZIP = None  # Zip code for location search (e.g., "95826" for Sacramento). None searches default area.
 COMMONSPIRIT_MAX_PAGES = 20  # Max pages to scrape (11 jobs per page, ~168 total jobs)
 
 # =============================================================================

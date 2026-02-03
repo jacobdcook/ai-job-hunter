@@ -21,7 +21,7 @@ try:
     from config import STATE_CA_LOCATION, STATE_CA_KEYWORDS
     from config import UCDAVIS_KEYWORDS
     from config import SUTTER_KEYWORDS
-    from config import COMMONSPIRIT_MAX_PAGES
+    from config import COMMONSPIRIT_MAX_PAGES, COMMONSPIRIT_ZIP
 except ImportError as e:
     # config.py doesn't exist - will prompt user in main()
     SEARCH_QUERIES = []
@@ -37,6 +37,7 @@ except ImportError as e:
     UCDAVIS_KEYWORDS = ["IT", "Security", "Analyst", "Associate"]
     SUTTER_KEYWORDS = ["IT", "Security", "Analyst", "Help Desk", "Systems", "Network", "Cyber", "Infrastructure", "Support", "Technician"]
     COMMONSPIRIT_MAX_PAGES = 20
+    COMMONSPIRIT_ZIP = None
 
 
 # Map site keys to their display source names (must match scraper SITE_NAME values)
@@ -325,8 +326,13 @@ async def main():
         # CommonSpirit Health - scrape all Sacramento area jobs (pure HTTP, no browser)
         if selected_sites.get("commonspirit", False):
             print(f"\n📍 Scraping CommonSpirit Health Jobs (Dignity Health, CHI)...")
+            # Use zip code from config if provided, otherwise use default
+            commonspirit_location = None
+            if COMMONSPIRIT_ZIP:
+                commonspirit_location = f"{COMMONSPIRIT_ZIP}, Sacramento, CA"
             raw_jobs = await scrape_commonspirit_jobs(
                 max_pages=COMMONSPIRIT_MAX_PAGES,
+                location=commonspirit_location,
                 headless=False
             )
             all_raw_jobs.extend(raw_jobs)

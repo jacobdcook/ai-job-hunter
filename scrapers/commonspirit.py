@@ -35,9 +35,10 @@ PAGE_DELAY = 2
 DESC_DELAY = 1
 
 
-def _build_search_url():
-    """Build initial search page URL for Sacramento area."""
-    location_encoded = quote(DEFAULT_LOCATION, safe='')
+def _build_search_url(location=None):
+    """Build initial search page URL for specified location (default: Sacramento area)."""
+    loc = location or DEFAULT_LOCATION
+    location_encoded = quote(loc, safe='')
     lat = DEFAULT_LATITUDE.replace('.', 'x')
     lon = DEFAULT_LONGITUDE.replace('.', 'x')
 
@@ -47,8 +48,9 @@ def _build_search_url():
     )
 
 
-def _build_results_api_url(page, total_results=None):
+def _build_results_api_url(page, location=None, total_results=None):
     """Build AJAX pagination API URL."""
+    loc = location or DEFAULT_LOCATION
     params = {
         "ActiveFacetID": "0",
         "CurrentPage": str(page),
@@ -57,7 +59,7 @@ def _build_results_api_url(page, total_results=None):
         "Distance": str(DEFAULT_RADIUS),
         "RadiusUnitType": "0",
         "Keywords": "",
-        "Location": DEFAULT_LOCATION,
+        "Location": loc,
         "Latitude": DEFAULT_LATITUDE,
         "Longitude": DEFAULT_LONGITUDE,
         "ShowRadius": "True",
@@ -157,17 +159,19 @@ def _extract_total_results(html):
     return 0
 
 
-async def scrape_commonspirit_jobs(max_pages=20, headless=False):
+async def scrape_commonspirit_jobs(max_pages=20, location=None, headless=False):
     """
     Scrapes CommonSpirit Health jobs via direct HTTP requests.
 
     Args:
         max_pages: Maximum number of pages to scrape
+        location: Zip code and location string (e.g., "95826, Sacramento, CA"). Uses default if None.
         headless: Unused (kept for interface compatibility)
 
     Returns:
         List of job dictionaries
     """
+    loc = location or DEFAULT_LOCATION
     all_jobs = {}  # Dedup by URL
 
     headers = {
@@ -175,14 +179,14 @@ async def scrape_commonspirit_jobs(max_pages=20, headless=False):
         "Accept": "*/*",
         "Accept-Language": "en-US,en;q=0.9",
         "X-Requested-With": "XMLHttpRequest",
-        "Referer": _build_search_url(),
+        "Referer": _build_search_url(location=loc),
     }
 
     async with aiohttp.ClientSession(headers=headers) as session:
-        print(f"\n[CommonSpirit] Searching jobs in {DEFAULT_LOCATION}...")
+        print(f"\n[CommonSpirit] Searching jobs in {loc}...")
 
         # First, load the search page to establish session
-        search_url = _build_search_url()
+        search_url = _build_search_url(location=loc)
         try:
             async with session.get(search_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
@@ -215,7 +219,7 @@ async def scrape_commonspirit_jobs(max_pages=20, headless=False):
         pages_to_scrape = min(total_pages, max_pages)
 
         for page in range(2, pages_to_scrape + 1):
-            api_url = _build_results_api_url(page, total_results)
+            api_url = _build_results_api_url(page, location=loc, total_results=total_results)
 
             try:
                 async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
