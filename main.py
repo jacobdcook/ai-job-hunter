@@ -238,12 +238,33 @@ def select_sites():
 
 
 async def main():
-    # 0. Check if config.py exists - if not, run setup wizard
-    if not os.path.exists("config.py"):
+    # 0. Check if config.py and .env with GROQ API keys exist
+    config_missing = not os.path.exists("config.py")
+    env_missing = not os.path.exists(".env")
+    env_has_groq = False
+
+    # Check if .env has GROQ API keys
+    if not env_missing:
+        try:
+            with open(".env", "r") as f:
+                env_content = f.read()
+                env_has_groq = "GROQ_API_KEY" in env_content or "GROQ_API_KEYS" in env_content
+        except:
+            pass
+
+    # If config or API keys are missing, prompt for setup wizard
+    if config_missing or env_missing or not env_has_groq:
         print("\n" + "="*70)
-        print("⚠️  config.py not found!")
+        if config_missing:
+            print("⚠️  config.py not found!")
+        if env_missing or not env_has_groq:
+            print("⚠️  Groq API key(s) not configured!")
         print("="*70)
         print("\nWelcome to AI Job Hunter! Let's set up your profile.\n")
+
+        if env_missing or not env_has_groq:
+            print("💡 Note: You'll need a FREE Groq API key from console.groq.com")
+            print("   The setup wizard will help you configure it.\n")
 
         run_setup = input("Run the setup wizard now? (y/n): ").strip().lower()
         if run_setup in ['y', 'yes']:
@@ -251,9 +272,14 @@ async def main():
             print("\n✅ Setup complete! Now restart the app: python main.py\n")
             sys.exit(0)
         else:
-            print("\nYou can manually set up by copying the template:")
-            print("  cp config_template.py config.py")
-            print("  # Then edit config.py with your preferences\n")
+            print("\nYou can manually set up by:")
+            if config_missing:
+                print("  1. cp config_template.py config.py")
+                print("     # Then edit config.py with your preferences")
+            if env_missing or not env_has_groq:
+                print("  2. Create .env with your Groq API key:")
+                print("     echo 'GROQ_API_KEY=your_key_here' > .env")
+                print("     # Get a free key from https://console.groq.com\n")
             sys.exit(1)
 
     # 1. Initialize
