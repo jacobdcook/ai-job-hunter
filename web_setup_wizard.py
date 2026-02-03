@@ -137,10 +137,11 @@ UCDAVIS_MAX_PAGES = 20
 
 @app.route('/api/shutdown', methods=['POST'])
 def shutdown():
-    """Shutdown the Flask server gracefully."""
+    """Shutdown the Flask server."""
     def stop_server():
-        time.sleep(0.5)  # Give response time to send
-        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(1)  # Give response time to send
+        import sys
+        sys.exit(0)
 
     thread = threading.Thread(target=stop_server, daemon=False)
     thread.start()
