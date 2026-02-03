@@ -2,7 +2,6 @@ import asyncio
 import os
 import sqlite3
 import sys
-from web_setup_wizard import run_setup_wizard
 from scrapers.pge import scrape_pge_jobs, fetch_pge_descriptions_batch
 from scrapers.smud import scrape_smud_jobs, fetch_smud_descriptions_batch, scrape_all_smud_jobs
 from scrapers.kaiser import scrape_kaiser_jobs, fetch_kaiser_descriptions_batch, scrape_all_kaiser_jobs
@@ -10,6 +9,7 @@ from scrapers.state_ca import scrape_state_ca_jobs, fetch_state_ca_descriptions_
 from scrapers.ucdavis import scrape_ucdavis_jobs, fetch_ucdavis_descriptions_batch
 from scrapers.sutter import scrape_sutter_jobs, fetch_sutter_descriptions_batch
 from scrapers.commonspirit import scrape_commonspirit_jobs, fetch_commonspirit_descriptions_batch
+from scrapers.government_jobs import scrape_government_jobs, fetch_job_details
 from database import init_db, save_job, get_new_jobs, get_new_jobs_as_dicts, update_job_analysis, update_job_failed_analysis, update_job_skip_reason, update_job_title, DB_NAME, reset_failed_analyses, get_jobs_needing_analysis, get_jobs_to_refilter, export_to_excel, generate_job_id
 from ai_analyzer import JobAnalyzer
 from dotenv import load_dotenv
@@ -22,6 +22,7 @@ try:
     from config import UCDAVIS_KEYWORDS
     from config import SUTTER_KEYWORDS
     from config import COMMONSPIRIT_MAX_PAGES, COMMONSPIRIT_ZIP
+    from config import GOVERNMENT_JOBS_LOCATION, GOVERNMENT_JOBS_DISTANCE, GOVERNMENT_JOBS_KEYWORDS, GOVERNMENT_JOBS_MAX_PAGES
 except ImportError as e:
     # config.py doesn't exist - will prompt user in main()
     SEARCH_QUERIES = []
@@ -38,6 +39,10 @@ except ImportError as e:
     SUTTER_KEYWORDS = ["IT", "Security", "Analyst", "Help Desk", "Systems", "Network", "Cyber", "Infrastructure", "Support", "Technician"]
     COMMONSPIRIT_MAX_PAGES = 20
     COMMONSPIRIT_ZIP = None
+    GOVERNMENT_JOBS_LOCATION = "95826"
+    GOVERNMENT_JOBS_DISTANCE = 100
+    GOVERNMENT_JOBS_KEYWORDS = ["SOC Analyst", "Security Analyst", "Security Operations", "Threat Detection", "Incident Response", "IT Analyst", "Systems Admin"]
+    GOVERNMENT_JOBS_MAX_PAGES = 20
 
 
 # Map site keys to their display source names (must match scraper SITE_NAME values)
@@ -49,6 +54,7 @@ SITE_SOURCE_MAP = {
     "ucdavis": "UC Davis",
     "sutter": "Sutter Health",
     "commonspirit": "CommonSpirit",
+    "government_jobs": "GovernmentJobs.com",
 }
 
 import re
@@ -195,19 +201,27 @@ def select_sites():
     print("  5) UC Davis only")
     print("  6) Sutter Health only")
     print("  7) CommonSpirit Health only")
-    print("  8) All sites (PG&E + SMUD + Kaiser + State CA + UC Davis + Sutter + CommonSpirit)")
-    print("  9) Use config.py settings")
-    print(" 10) RE-ANALYZE DATABASE (Skip scraping, run AI on existing jobs)")
-    print(" 11) REFILTER EXISTING JOBS (Apply new filters to all DB jobs)")
-    print(" 12) ANALYZE UNANALYZED (Fetch missing descriptions + analyze all DB jobs)")
+    print("  8) GovernmentJobs.com only")
+    print("  9) All sites (PG&E + SMUD + Kaiser + State CA + UC Davis + Sutter + CommonSpirit + Government Jobs)")
+    print(" 10) Use config.py settings")
+    print(" 11) RE-ANALYZE DATABASE (Skip scraping, run AI on existing jobs)")
+    print(" 12) REFILTER EXISTING JOBS (Apply new filters to all DB jobs)")
+    print(" 13) ANALYZE UNANALYZED (Fetch missing descriptions + analyze all DB jobs)")
 
-    all_false = {"pge": False, "smud": False, "kaiser": False, "state_ca": False, "ucdavis": False, "sutter": False, "commonspirit": False}
+    all_false = {"pge": False, "smud": False, "kaiser": False, "state_ca": False, "ucdavis": False, "sutter": False, "commonspirit": False, "government_jobs": False}
 
     while True:
-        choice = input("\nEnter choice (0-12): ").strip()
+        choice = input("\nEnter choice (0-13): ").strip()
         if choice == "0":
-            # Run setup wizard and return to menu
-            run_setup_wizard()
+            # Run setup wizard and return to menu (requires Flask)
+            try:
+                from web_setup_wizard import run_setup_wizard
+                run_setup_wizard()
+            except ModuleNotFoundError as e:
+                if "flask" in str(e).lower():
+                    print("Install Flask to use the web setup wizard: pip install flask")
+                else:
+                    raise
             return select_sites()  # Restart menu
         elif choice == "1":
             return {**all_false, "pge": True}, "scrape"
@@ -224,17 +238,19 @@ def select_sites():
         elif choice == "7":
             return {**all_false, "commonspirit": True}, "scrape"
         elif choice == "8":
-            return {k: True for k in all_false}, "scrape"
+            return {**all_false, "government_jobs": True}, "scrape"
         elif choice == "9":
-            return ENABLED_SITES.copy(), "scrape"
+            return {k: True for k in all_false}, "scrape"
         elif choice == "10":
-            return {}, "reanalyze"
+            return ENABLED_SITES.copy(), "scrape"
         elif choice == "11":
-            return {}, "refilter"
+            return {}, "reanalyze"
         elif choice == "12":
+            return {}, "refilter"
+        elif choice == "13":
             return {}, "unanalyzed"
         else:
-            print("Invalid choice. Please enter 0-12.")
+            print("Invalid choice. Please enter 0-13.")
 
 
 async def main():
@@ -268,19 +284,25 @@ async def main():
 
         run_setup = input("Run the setup wizard now? (y/n): ").strip().lower()
         if run_setup in ['y', 'yes']:
-            run_setup_wizard()
+            try:
+                from web_setup_wizard import run_setup_wizard
+                run_setup_wizard()
+            except ModuleNotFoundError as e:
+                if "flask" in str(e).lower():
+                    print("Install Flask first: pip install flask")
+                    sys.exit(1)
+                raise
             print("\n✅ Setup complete! Now restart the app: python main.py\n")
             sys.exit(0)
         else:
-            print("\nYou can manually set up by:")
             if config_missing:
-                print("  1. cp config_template.py config.py")
-                print("     # Then edit config.py with your preferences")
+                print("\nYou need config.py. Create it with: cp config_template.py config.py")
+                sys.exit(1)
             if env_missing or not env_has_groq:
-                print("  2. Create .env with your Groq API key:")
-                print("     echo 'GROQ_API_KEY=your_key_here' > .env")
-                print("     # Get a free key from https://console.groq.com\n")
-            sys.exit(1)
+                print("\n⚠️  No Groq API key in .env — scraping and export will work; AI analysis will not.")
+                print("   To add later: echo 'GROQ_API_KEY=your_key' >> .env")
+                print("   Get a free key: https://console.groq.com\n")
+                # Continue to menu so user can still scrape, refilter, export
 
     # 1. Initialize
     load_dotenv()
@@ -360,6 +382,17 @@ async def main():
                 max_pages=COMMONSPIRIT_MAX_PAGES,
                 location=commonspirit_location,
                 headless=False
+            )
+            all_raw_jobs.extend(raw_jobs)
+
+        # GovernmentJobs.com - scrape security/IT analyst roles (pure HTTP, no browser)
+        if selected_sites.get("government_jobs", False):
+            print(f"\n📍 Scraping GovernmentJobs.com (Government IT & Security Roles)...")
+            raw_jobs = await scrape_government_jobs(
+                keywords=GOVERNMENT_JOBS_KEYWORDS,
+                location=GOVERNMENT_JOBS_LOCATION,
+                distance=GOVERNMENT_JOBS_DISTANCE,
+                max_pages=GOVERNMENT_JOBS_MAX_PAGES
             )
             all_raw_jobs.extend(raw_jobs)
 
@@ -446,10 +479,11 @@ async def main():
         print("  5) UC Davis")
         print("  6) Sutter Health")
         print("  7) CommonSpirit Health")
-        print("  8) ALL")
+        print("  8) GovernmentJobs.com")
+        print("  9) ALL")
 
-        source_choice = input("\nEnter choice (1-8): ").strip()
-        source_map = {"1": "State of California", "2": "PG&E", "3": "SMUD", "4": "Kaiser Permanente", "5": "UC Davis", "6": "Sutter Health", "7": "CommonSpirit"}
+        source_choice = input("\nEnter choice (1-9): ").strip()
+        source_map = {"1": "State of California", "2": "PG&E", "3": "SMUD", "4": "Kaiser Permanente", "5": "UC Davis", "6": "Sutter Health", "7": "CommonSpirit", "8": "GovernmentJobs.com"}
         target_source = source_map.get(source_choice)
         if target_source:
             active_sources = [target_source]
@@ -724,6 +758,21 @@ async def main():
             for job in commonspirit_to_fetch:
                 job_id = generate_job_id(job['link'])
                 desc = descriptions.get(job['link'], '')
+                if desc:
+                    c.execute("UPDATE jobs SET description = ? WHERE id = ?", (desc, job_id))
+            conn.commit()
+            conn.close()
+
+        # Fetch GovernmentJobs descriptions
+        government_jobs_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'GovernmentJobs.com']
+        if government_jobs_to_fetch:
+            print(f"  [GovernmentJobs.com] Fetching descriptions for {len(government_jobs_to_fetch)} jobs (pure HTTP, 2s delays)...")
+            descriptions = await fetch_job_details(government_jobs_to_fetch, batch_size=3)
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            for job in government_jobs_to_fetch:
+                job_id = generate_job_id(job['link'])
+                desc = job.get('description', '')
                 if desc:
                     c.execute("UPDATE jobs SET description = ? WHERE id = ?", (desc, job_id))
             conn.commit()

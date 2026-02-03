@@ -33,6 +33,7 @@ ENABLED_SITES = {
     "ucdavis": True,       # UC Davis
     "sutter": True,        # Sutter Health
     "commonspirit": True,  # CommonSpirit Health (Dignity Health, CHI)
+    "government_jobs": True,  # GovernmentJobs.com (Government IT/Security roles)
 }
 
 # Kaiser Permanente specific URLs (Default: California, US)
@@ -53,10 +54,20 @@ KAISER_KEYWORD_URL_TEMPLATE = "/search-jobs/{keyword}/California%2C%20US/641/1/3
 #      and check the Location dropdown for exact county names
 STATE_CA_LOCATION = "Sacramento County"
 
-# Keywords to search on State CA jobs site
-# These will be searched separately and results combined
-# Note: "Information" tends to return more IT results than just "IT"
-STATE_CA_KEYWORDS = ["Information", "Security", "Analyst", "Systems", "Network", "Cyber"]
+# Keywords to search on State CA jobs site (CalCareers)
+# Searched separately; results combined and deduped by job link.
+# CalCareers uses "Information Technology" and "Information" a lot for IT roles.
+STATE_CA_KEYWORDS = [
+    "Information Technology",  # CalCareers classification; catches many IT postings
+    "Information",            # Broader match for IT/Info roles
+    "IT",
+    "Security",
+    "Cyber",
+    "Analyst",
+    "Systems",
+    "Network",
+    "Technology",             # Catches "Information Technology" and similar
+]
 
 # UC Davis keywords
 # Keywords to search on UC Davis careers site
@@ -70,6 +81,25 @@ SUTTER_KEYWORDS = ["IT", "Security", "Analyst", "Help Desk", "Systems", "Network
 # Website: https://www.commonspirit.careers
 COMMONSPIRIT_ZIP = None  # Zip code for location search (e.g., "95826" for Sacramento). None searches default area.
 COMMONSPIRIT_MAX_PAGES = 20  # Max pages to scrape (11 jobs per page, ~168 total jobs)
+
+# GovernmentJobs.com configuration (Government IT & Security roles)
+# Website: https://www.governmentjobs.com
+# Optimized for IT security analyst, SOC analyst, and government tech roles
+GOVERNMENT_JOBS_LOCATION = "95826"  # Zip code (default: Sacramento, CA)
+GOVERNMENT_JOBS_DISTANCE = 100  # Search radius in miles
+GOVERNMENT_JOBS_MAX_PAGES = 20  # Max pages to scrape (~20 jobs per page)
+GOVERNMENT_JOBS_KEYWORDS = [
+    "SOC Analyst",
+    "Security Analyst",
+    "Security Operations",
+    "Threat Detection",
+    "Incident Response",
+    "IT Analyst",
+    "Systems Admin",
+    "Information Security",
+    "Cybersecurity",
+    "Network Security"
+]
 
 # =============================================================================
 # SEARCH QUERIES
