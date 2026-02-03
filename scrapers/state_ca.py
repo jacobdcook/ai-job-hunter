@@ -20,9 +20,12 @@ ADVANCED_SEARCH_URL = f"{BASE_URL}/CalHRPublic/Search/AdvancedJobSearch.aspx"
 # Default location: Sacramento County
 DEFAULT_LOCATION = "Sacramento County"
 
-# Delay between actions (seconds)
-PAGE_DELAY = 10
-SEARCH_DELAY = 5
+# Delay between actions (seconds) - generous to avoid timeouts on slow CalCareers responses
+PAGE_DELAY = 12
+SEARCH_DELAY = 8
+# How long to wait for search results to load (ms) - "IT" and big result sets can be slow
+SEARCH_RESULTS_TIMEOUT_MS = 90000  # 90 seconds
+PAGE_DEFAULT_TIMEOUT_MS = 90000    # 90s default for page operations (slow CalCareers)
 
 
 async def scrape_state_ca_jobs(search_queries=None, location=None, headless=False):
@@ -57,6 +60,8 @@ async def scrape_state_ca_jobs(search_queries=None, location=None, headless=Fals
             user_agent="Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0"
         )
         page = await context.new_page()
+        page.set_default_timeout(PAGE_DEFAULT_TIMEOUT_MS)
+        page.set_default_navigation_timeout(90000)  # 90s for navigations
 
         print(f"[State CA] Opening Advanced Search page...")
 
@@ -73,7 +78,7 @@ async def scrape_state_ca_jobs(search_queries=None, location=None, headless=Fals
                         adv_link = await page.query_selector("a:has-text('Advanced Job Search')")
                         if adv_link:
                             await adv_link.click()
-                            await page.wait_for_load_state("networkidle", timeout=30000)
+                            await page.wait_for_load_state("networkidle", timeout=45000)
                         else:
                             await page.goto(ADVANCED_SEARCH_URL, timeout=60000)
                     except Exception:
@@ -128,71 +133,88 @@ async def scrape_state_ca_jobs(search_queries=None, location=None, headless=Fals
                 )
                 if search_btn:
                     await search_btn.click()
-                    print(f"[State CA] Clicked Search button, waiting for results...")
-                    await page.wait_for_load_state("networkidle", timeout=45000)
+                    print(f"[State CA] Clicked Search button, waiting for results (up to {SEARCH_RESULTS_TIMEOUT_MS // 1000}s)...")
+                    await page.wait_for_load_state("networkidle", timeout=SEARCH_RESULTS_TIMEOUT_MS)
                     await asyncio.sleep(3)
+                    # If CalCareers shows "No jobs found", skip this keyword and go to next (no 90s wait)
+                    body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                    if body_text and "No jobs found matching your search criteria" in body_text:
+                        print(f"[State CA] No jobs found for '{query}', skipping to next keyword.")
+                        if query != search_queries[-1]:
+                            wait_time = SEARCH_DELAY + random.uniform(0, 2)
+                            print(f"[State CA] Waiting {wait_time:.1f}s before next keyword...")
+                            await asyncio.sleep(wait_time)
+                        continue
+                    # Wait for result count element (CalCareers can be slow for large result sets)
+                    try:
+                        await page.wait_for_selector("#cphMainContent_lblTotalResultCount", state="visible", timeout=SEARCH_RESULTS_TIMEOUT_MS)
+                    except Exception as e:
+                        print(f"[State CA] Warning: result count element did not appear in time: {e}")
                 else:
                     print(f"[State CA] ERROR: Could not find Search button")
                     continue
 
-                # Set page size to 50 (5x fewer page loads, 100 can crash the browser)
-                await _set_page_size(page, 50)
+                # Set page size, get result count, and paginate (one keyword) - catch timeout so we continue to next keyword
+                try:
+                    await _set_page_size(page, 50)
 
-                # Get total result count
-                total_text = await page.text_content("#cphMainContent_lblTotalResultCount")
-                if total_text:
-                    print(f"[State CA] Total results for '{query}': {total_text.strip()}")
+                    # Get total result count (element already waited for above)
+                    total_text = await page.text_content("#cphMainContent_lblTotalResultCount")
+                    if total_text:
+                        print(f"[State CA] Total results for '{query}': {total_text.strip()}")
 
-                # Paginate through results
-                current_page = 0
-                consecutive_empty = 0
-                max_pages = 50
+                    # Paginate through results
+                    current_page = 0
+                    consecutive_empty = 0
+                    max_pages = 50
 
-                while current_page < max_pages:
-                    current_page += 1
-                    before_count = len(all_jobs)
+                    while current_page < max_pages:
+                        current_page += 1
+                        before_count = len(all_jobs)
 
-                    jobs_on_page = await _extract_jobs_from_page(page)
+                        jobs_on_page = await _extract_jobs_from_page(page)
 
-                    for job in jobs_on_page:
-                        all_jobs[job['link']] = job
+                        for job in jobs_on_page:
+                            all_jobs[job['link']] = job
 
-                    new_count = len(all_jobs) - before_count
-                    print(f"[State CA] Page {current_page}: {len(jobs_on_page)} jobs on page, +{new_count} new (total: {len(all_jobs)})")
+                        new_count = len(all_jobs) - before_count
+                        print(f"[State CA] Page {current_page}: {len(jobs_on_page)} jobs on page, +{new_count} new (total: {len(all_jobs)})")
 
-                    if new_count == 0:
-                        consecutive_empty += 1
-                        if consecutive_empty >= 2:
-                            print(f"[State CA] No new jobs for {consecutive_empty} pages, moving on")
+                        if new_count == 0:
+                            consecutive_empty += 1
+                            if consecutive_empty >= 2:
+                                print(f"[State CA] No new jobs for {consecutive_empty} pages, moving on")
+                                break
+                        else:
+                            consecutive_empty = 0
+
+                        # Find next page
+                        next_btn = await _find_next_button(page, current_page + 1)
+
+                        if not next_btn:
+                            print(f"[State CA] No more pages for '{query}' (reached page {current_page})")
                             break
-                    else:
-                        consecutive_empty = 0
 
-                    # Find next page
-                    next_btn = await _find_next_button(page, current_page + 1)
+                        print(f"[State CA] Waiting {PAGE_DELAY}s before next page...")
+                        await asyncio.sleep(PAGE_DELAY + random.uniform(0, 2))
 
-                    if not next_btn:
-                        print(f"[State CA] No more pages for '{query}' (reached page {current_page})")
-                        break
+                        try:
+                            await next_btn.scroll_into_view_if_needed()
+                            await asyncio.sleep(0.5)
+                            await next_btn.evaluate("el => el.click()")
+                            await asyncio.sleep(3)
+                            await page.wait_for_load_state("networkidle", timeout=45000)
+                            await asyncio.sleep(2)
+                        except Exception as e:
+                            print(f"[State CA] Error navigating to next page: {e}")
+                            if "closed" in str(e).lower() or "crash" in str(e).lower():
+                                print(f"[State CA] Browser lost, keeping {len(all_jobs)} jobs scraped so far")
+                                break
+                            await asyncio.sleep(2)
+                            continue
 
-                    print(f"[State CA] Waiting {PAGE_DELAY}s before next page...")
-                    await asyncio.sleep(PAGE_DELAY + random.uniform(0, 2))
-
-                    try:
-                        await next_btn.scroll_into_view_if_needed()
-                        await asyncio.sleep(0.5)
-                        await next_btn.evaluate("el => el.click()")
-                        await asyncio.sleep(3)
-                        await page.wait_for_load_state("networkidle", timeout=30000)
-                        await asyncio.sleep(2)
-                    except Exception as e:
-                        print(f"[State CA] Error navigating to next page: {e}")
-                        # If browser/page died, break out gracefully with what we have
-                        if "closed" in str(e).lower() or "crash" in str(e).lower():
-                            print(f"[State CA] Browser lost, keeping {len(all_jobs)} jobs scraped so far")
-                            break
-                        await asyncio.sleep(2)
-                        continue
+                except Exception as e:
+                    print(f"[State CA] Timeout or error for keyword '{query}' (continuing with next): {e}")
 
                 if query != search_queries[-1]:
                     wait_time = SEARCH_DELAY + random.uniform(0, 2)
@@ -225,7 +247,7 @@ async def _set_page_size(page, size=100):
                 await dropdown.select_option(str(size))
                 print(f"[State CA] Set page size to {size} (was {current})")
                 await asyncio.sleep(2)
-                await page.wait_for_load_state("networkidle", timeout=30000)
+                await page.wait_for_load_state("networkidle", timeout=45000)
                 await asyncio.sleep(2)
     except Exception as e:
         print(f"[State CA] Could not set page size: {e}")

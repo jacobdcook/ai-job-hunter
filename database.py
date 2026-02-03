@@ -265,6 +265,8 @@ def export_to_excel(filename=None):
             return "Rate limit reached (will retry on next ANALYZE UNANALYZED)"
         if status == 'failed' and analysis:
             return analysis
+        if status == 'new':
+            return "Not yet analyzed — run option 12 (ANALYZE UNANALYZED) to fetch descriptions and run AI"
         return ""
 
     df['Notes'] = df.apply(get_notes, axis=1)
