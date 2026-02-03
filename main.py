@@ -2,7 +2,7 @@ import asyncio
 import os
 import sqlite3
 import sys
-from setup_wizard import run_setup_wizard
+from web_setup_wizard import run_setup_wizard
 from scrapers.pge import scrape_pge_jobs, fetch_pge_descriptions_batch
 from scrapers.smud import scrape_smud_jobs, fetch_smud_descriptions_batch, scrape_all_smud_jobs
 from scrapers.kaiser import scrape_kaiser_jobs, fetch_kaiser_descriptions_batch, scrape_all_kaiser_jobs
