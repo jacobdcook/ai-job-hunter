@@ -196,8 +196,36 @@ async def fetch_intel_descriptions_batch(
                             job["description"] = description_text[:2000]
                             print("✓")
                         else:
-                            job["description"] = "No description available"
-                            print("⚠ No description")
+                            # API didn't return description - try web page as fallback
+                            web_url = job.get("link", "")
+                            if web_url:
+                                try:
+                                    async with session.get(web_url, timeout=15) as web_resp:
+                                        if web_resp.status == 200:
+                                            web_html = await web_resp.text()
+                                            web_soup = BeautifulSoup(web_html, "html.parser")
+
+                                            # Try to find job description in page
+                                            desc_div = web_soup.find("div", {"data-automation-id": "jobPostingDescription"})
+                                            if not desc_div:
+                                                desc_div = web_soup.find("div", class_=lambda x: x and "description" in x.lower())
+
+                                            if desc_div:
+                                                description_text = desc_div.get_text(separator=" ", strip=True)
+                                                job["description"] = description_text[:2000]
+                                                print("✓ (web)")
+                                            else:
+                                                job["description"] = "No description available"
+                                                print("⚠ No description")
+                                        else:
+                                            job["description"] = "No description available"
+                                            print("⚠ No description")
+                                except:
+                                    job["description"] = "No description available"
+                                    print("⚠ No description")
+                            else:
+                                job["description"] = "No description available"
+                                print("⚠ No description")
                     else:
                         job["description"] = f"Error fetching (Status {resp.status})"
                         print(f"✗ {resp.status}")
