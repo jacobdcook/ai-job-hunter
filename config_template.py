@@ -34,6 +34,7 @@ ENABLED_SITES = {
     "sutter": True,        # Sutter Health
     "commonspirit": True,  # CommonSpirit Health (Dignity Health, CHI)
     "government_jobs": True,  # GovernmentJobs.com (Government IT/Security roles)
+    "intel": True,         # Intel Corporation (Folsom campus + Sacramento area)
 }
 
 # Kaiser Permanente specific URLs (Default: California, US)
@@ -100,6 +101,12 @@ GOVERNMENT_JOBS_KEYWORDS = [
     "Cybersecurity",
     "Network Security"
 ]
+
+# Intel Corporation configuration
+# Website: https://intel.wd1.myworkdayjobs.com/External
+# Uses Workday API for job listings (no keyword search, just location filter)
+INTEL_USE_LOCATION_FILTER = True  # True = Sacramento area (Folsom + nearby), False = All Intel jobs nationwide
+INTEL_MAX_JOBS = 200  # Max jobs to scrape (default 200)
 
 # =============================================================================
 # SEARCH QUERIES

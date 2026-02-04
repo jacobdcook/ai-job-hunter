@@ -11,6 +11,7 @@ from .ucdavis import scrape_ucdavis_jobs, fetch_ucdavis_descriptions_batch
 from .sutter import scrape_sutter_jobs, fetch_sutter_descriptions_batch
 from .commonspirit import scrape_commonspirit_jobs, fetch_commonspirit_descriptions_batch
 from .government_jobs import scrape_government_jobs, fetch_job_details
+from .intel import scrape_intel_jobs, fetch_intel_descriptions_batch
 
 __all__ = [
     'scrape_pge_jobs', 'fetch_pge_descriptions_batch',
@@ -21,4 +22,5 @@ __all__ = [
     'scrape_sutter_jobs', 'fetch_sutter_descriptions_batch',
     'scrape_commonspirit_jobs', 'fetch_commonspirit_descriptions_batch',
     'scrape_government_jobs', 'fetch_job_details',
+    'scrape_intel_jobs', 'fetch_intel_descriptions_batch',
 ]

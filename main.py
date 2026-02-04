@@ -10,6 +10,7 @@ from scrapers.ucdavis import scrape_ucdavis_jobs, fetch_ucdavis_descriptions_bat
 from scrapers.sutter import scrape_sutter_jobs, fetch_sutter_descriptions_batch
 from scrapers.commonspirit import scrape_commonspirit_jobs, fetch_commonspirit_descriptions_batch
 from scrapers.government_jobs import scrape_government_jobs, fetch_job_details
+from scrapers.intel import scrape_intel_jobs, fetch_intel_descriptions_batch
 from database import init_db, save_job, get_new_jobs, get_new_jobs_as_dicts, update_job_analysis, update_job_failed_analysis, update_job_skip_reason, update_job_title, DB_NAME, reset_failed_analyses, get_jobs_needing_analysis, get_jobs_to_refilter, export_to_excel, generate_job_id
 from ai_analyzer import JobAnalyzer
 from dotenv import load_dotenv
@@ -23,6 +24,7 @@ try:
     from config import SUTTER_KEYWORDS
     from config import COMMONSPIRIT_MAX_PAGES, COMMONSPIRIT_ZIP
     from config import GOVERNMENT_JOBS_LOCATION, GOVERNMENT_JOBS_DISTANCE, GOVERNMENT_JOBS_KEYWORDS, GOVERNMENT_JOBS_MAX_PAGES
+    from config import INTEL_USE_LOCATION_FILTER, INTEL_MAX_JOBS
 except ImportError as e:
     # config.py doesn't exist - will prompt user in main()
     SEARCH_QUERIES = []
@@ -43,6 +45,8 @@ except ImportError as e:
     GOVERNMENT_JOBS_DISTANCE = 100
     GOVERNMENT_JOBS_KEYWORDS = ["SOC Analyst", "Security Analyst", "Security Operations", "Threat Detection", "Incident Response", "IT Analyst", "Systems Admin"]
     GOVERNMENT_JOBS_MAX_PAGES = 20
+    INTEL_USE_LOCATION_FILTER = True
+    INTEL_MAX_JOBS = 200
 
 
 # Map site keys to their display source names (must match scraper SITE_NAME values)
@@ -55,6 +59,7 @@ SITE_SOURCE_MAP = {
     "sutter": "Sutter Health",
     "commonspirit": "CommonSpirit",
     "government_jobs": "GovernmentJobs.com",
+    "intel": "Intel",
 }
 
 import re
@@ -202,16 +207,17 @@ def select_sites():
     print("  6) Sutter Health only")
     print("  7) CommonSpirit Health only")
     print("  8) GovernmentJobs.com only")
-    print("  9) All sites (PG&E + SMUD + Kaiser + State CA + UC Davis + Sutter + CommonSpirit + Government Jobs)")
-    print(" 10) Use config.py settings")
-    print(" 11) RE-ANALYZE DATABASE (Skip scraping, run AI on existing jobs)")
-    print(" 12) REFILTER EXISTING JOBS (Apply new filters to all DB jobs)")
-    print(" 13) ANALYZE UNANALYZED (Fetch missing descriptions + analyze all DB jobs)")
+    print("  9) Intel Corporation only")
+    print(" 10) All sites (PG&E + SMUD + Kaiser + State CA + UC Davis + Sutter + CommonSpirit + Government Jobs + Intel)")
+    print(" 11) Use config.py settings")
+    print(" 12) RE-ANALYZE DATABASE (Skip scraping, run AI on existing jobs)")
+    print(" 13) REFILTER EXISTING JOBS (Apply new filters to all DB jobs)")
+    print(" 14) ANALYZE UNANALYZED (Fetch missing descriptions + analyze all DB jobs)")
 
-    all_false = {"pge": False, "smud": False, "kaiser": False, "state_ca": False, "ucdavis": False, "sutter": False, "commonspirit": False, "government_jobs": False}
+    all_false = {"pge": False, "smud": False, "kaiser": False, "state_ca": False, "ucdavis": False, "sutter": False, "commonspirit": False, "government_jobs": False, "intel": False}
 
     while True:
-        choice = input("\nEnter choice (0-13): ").strip()
+        choice = input("\nEnter choice (0-14): ").strip()
         if choice == "0":
             # Run setup wizard and return to menu (requires Flask)
             try:
@@ -240,17 +246,19 @@ def select_sites():
         elif choice == "8":
             return {**all_false, "government_jobs": True}, "scrape"
         elif choice == "9":
-            return {k: True for k in all_false}, "scrape"
+            return {**all_false, "intel": True}, "scrape"
         elif choice == "10":
-            return ENABLED_SITES.copy(), "scrape"
+            return {k: True for k in all_false}, "scrape"
         elif choice == "11":
-            return {}, "reanalyze"
+            return ENABLED_SITES.copy(), "scrape"
         elif choice == "12":
-            return {}, "refilter"
+            return {}, "reanalyze"
         elif choice == "13":
+            return {}, "refilter"
+        elif choice == "14":
             return {}, "unanalyzed"
         else:
-            print("Invalid choice. Please enter 0-13.")
+            print("Invalid choice. Please enter 0-14.")
 
 
 async def main():
@@ -396,6 +404,15 @@ async def main():
             )
             all_raw_jobs.extend(raw_jobs)
 
+        # Intel Corporation - scrape Folsom campus + Sacramento area (pure HTTP, Workday API)
+        if selected_sites.get("intel", False):
+            print(f"\n📍 Scraping Intel Corporation Jobs (Sacramento area)...")
+            raw_jobs = await scrape_intel_jobs(
+                use_location_filter=INTEL_USE_LOCATION_FILTER,
+                max_jobs=INTEL_MAX_JOBS
+            )
+            all_raw_jobs.extend(raw_jobs)
+
         # Deduplicate by link
         unique_jobs_dict = {job['link']: job for job in all_raw_jobs}
         unique_jobs = list(unique_jobs_dict.values())
@@ -480,10 +497,11 @@ async def main():
         print("  6) Sutter Health")
         print("  7) CommonSpirit Health")
         print("  8) GovernmentJobs.com")
-        print("  9) ALL")
+        print("  9) Intel Corporation")
+        print(" 10) ALL")
 
-        source_choice = input("\nEnter choice (1-9): ").strip()
-        source_map = {"1": "State of California", "2": "PG&E", "3": "SMUD", "4": "Kaiser Permanente", "5": "UC Davis", "6": "Sutter Health", "7": "CommonSpirit", "8": "GovernmentJobs.com"}
+        source_choice = input("\nEnter choice (1-10): ").strip()
+        source_map = {"1": "State of California", "2": "PG&E", "3": "SMUD", "4": "Kaiser Permanente", "5": "UC Davis", "6": "Sutter Health", "7": "CommonSpirit", "8": "GovernmentJobs.com", "9": "Intel"}
         target_source = source_map.get(source_choice)
         if target_source:
             active_sources = [target_source]
@@ -771,6 +789,21 @@ async def main():
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in government_jobs_to_fetch:
+                job_id = generate_job_id(job['link'])
+                desc = job.get('description', '')
+                if desc:
+                    c.execute("UPDATE jobs SET description = ? WHERE id = ?", (desc, job_id))
+            conn.commit()
+            conn.close()
+
+        # Fetch Intel descriptions
+        intel_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Intel']
+        if intel_to_fetch:
+            print(f"  [Intel] Fetching descriptions for {len(intel_to_fetch)} jobs (Workday API, 2s delays)...")
+            jobs_with_desc = await fetch_intel_descriptions_batch(intel_to_fetch, batch_size=3)
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            for job in jobs_with_desc:
                 job_id = generate_job_id(job['link'])
                 desc = job.get('description', '')
                 if desc:
