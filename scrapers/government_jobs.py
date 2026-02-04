@@ -175,48 +175,43 @@ def _extract_jobs_from_page(soup: BeautifulSoup) -> List[Dict]:
     """Extract job listings from a GovernmentJobs page"""
     jobs = []
 
-    # Look for job listing containers
-    job_elements = soup.find_all("a", class_="jobTitleLink")
+    # Look for job listing containers (updated selectors for current site structure)
+    job_items = soup.find_all("li", class_="job-item")
 
-    if not job_elements:
-        # Try alternative selectors
-        job_elements = soup.find_all("a", {"class": lambda x: x and "job" in x.lower()})
-
-    for element in job_elements:
+    for job_item in job_items:
         try:
-            # Extract job title and link
-            job_url = element.get("href", "")
-            if not job_url:
+            # Extract title and link from job-details-link
+            title_elem = job_item.find("a", class_="job-details-link")
+            if not title_elem:
+                continue
+
+            title = title_elem.get_text(strip=True)
+            job_url = title_elem.get("href", "")
+
+            if not title or not job_url:
                 continue
 
             # Make absolute URL if relative
             if not job_url.startswith("http"):
                 job_url = f"https://www.governmentjobs.com{job_url}"
 
-            title = element.get_text(strip=True)
-            if not title:
-                continue
-
-            # Extract job details from parent containers
-            job_row = element.find_parent("div", class_="job")
-            if not job_row:
-                job_row = element.find_parent("tr")
-            if not job_row:
-                job_row = element.find_parent("li")
-
-            if not job_row:
-                continue
-
-            # Company and location
-            company_elem = job_row.find("span", class_="jobCompany")
+            # Extract company from job-organization div
+            company_elem = job_item.find("div", class_="job-organization")
             company = company_elem.get_text(strip=True) if company_elem else "Unknown"
 
-            location_elem = job_row.find("span", class_="jobLocation")
+            # Extract location from job-location span
+            location_elem = job_item.find("span", class_="job-location")
             location = location_elem.get_text(strip=True) if location_elem else "Unknown"
 
-            # Salary
-            salary_elem = job_row.find("span", class_="jobSalary")
-            salary = salary_elem.get_text(strip=True) if salary_elem else "Not posted"
+            # Extract salary from primaryInfo divs (salary is in a div without specific class)
+            salary = "Not posted"
+            primary_infos = job_item.find_all("div", class_="primaryInfo")
+            for info in primary_infos:
+                text = info.get_text(strip=True)
+                # Salary lines typically contain "$" and "Annually" or "Hourly"
+                if "$" in text and ("Annual" in text or "Hour" in text):
+                    salary = text
+                    break
 
             job = {
                 "title": title,
