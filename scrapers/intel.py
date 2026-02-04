@@ -87,6 +87,9 @@ async def scrape_intel_jobs(
                     # Track the first non-zero total (Workday API sometimes returns 0 on later pages)
                     if first_total is None and total_jobs > 0:
                         first_total = total_jobs
+                        print(f"[DEBUG] Set first_total={first_total} from API total={total_jobs}")
+                    else:
+                        print(f"[DEBUG] Page {offset//limit + 1}: API total={total_jobs}, first_total={first_total}, jobs_returned={len(job_postings)}")
 
                     if not job_postings:
                         print("No more jobs found")
@@ -124,7 +127,9 @@ async def scrape_intel_jobs(
                     print(f"Got {len(job_postings)} jobs (total available: {display_total})")
 
                     # Check if we've retrieved all jobs (use first_total if available)
-                    if first_total and offset + len(job_postings) >= first_total:
+                    jobs_retrieved = offset + len(job_postings)
+                    print(f"[DEBUG] Check stop: jobs_retrieved={jobs_retrieved}, first_total={first_total}, should_stop={first_total and jobs_retrieved >= first_total if first_total else False}")
+                    if first_total and jobs_retrieved >= first_total:
                         print(f"  Reached end of results ({first_total} total)")
                         break
 
