@@ -53,6 +53,7 @@ async def scrape_intel_jobs(
     async with aiohttp.ClientSession(headers=headers) as session:
         offset = 0
         limit = 20  # Workday default page size
+        first_total = None  # Track the first total we see (Workday API can be inconsistent)
 
         print(f"\n🔍 Scraping Intel jobs (Sacramento area filter: {use_location_filter})...")
 
@@ -82,6 +83,10 @@ async def scrape_intel_jobs(
 
                     total_jobs = data.get("total", 0)
                     job_postings = data.get("jobPostings", [])
+
+                    # Track the first non-zero total (Workday API sometimes returns 0 on later pages)
+                    if first_total is None and total_jobs > 0:
+                        first_total = total_jobs
 
                     if not job_postings:
                         print("No more jobs found")
@@ -114,11 +119,13 @@ async def scrape_intel_jobs(
 
                         jobs.append(job)
 
-                    print(f"Got {len(job_postings)} jobs (total available: {total_jobs})")
+                    # Show progress with the authoritative total (first non-zero total we saw)
+                    display_total = first_total if first_total else total_jobs
+                    print(f"Got {len(job_postings)} jobs (total available: {display_total})")
 
-                    # Check if we've retrieved all jobs
-                    if offset + len(job_postings) >= total_jobs:
-                        print(f"  Reached end of results ({total_jobs} total)")
+                    # Check if we've retrieved all jobs (use first_total if available)
+                    if first_total and offset + len(job_postings) >= first_total:
+                        print(f"  Reached end of results ({first_total} total)")
                         break
 
                     offset += limit
