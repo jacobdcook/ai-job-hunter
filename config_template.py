@@ -367,3 +367,17 @@ FEEDER_WEIGHT_OVERRIDES = {}
 #     "NOC_OPERATIONS": 85,
 #     "GRC_COMPLIANCE": 40,       # Lower priority if you want
 # }
+
+# =============================================================================
+# SOC FEEDER KEYWORD EXPANSION (for SOC Feeder Mode searching)
+# =============================================================================
+
+# Max keywords to use per site during SOC Feeder Mode searches
+# Higher = more comprehensive but slower + more API calls
+# Recommended: 10-20 keywords per site
+SOC_FEEDER_KEYWORDS_PER_SITE = 15
+
+# Per-site keyword overrides (optional)
+# Use to exclude certain SOC categories from specific sites
+# Example: {"intel": {"exclude_categories": ["SIEM_LOGGING"]}}
+SITE_KEYWORD_OVERRIDES = {}

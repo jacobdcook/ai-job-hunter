@@ -16,6 +16,7 @@ from scrapers.losrios import scrape_losrios_jobs, fetch_losrios_descriptions_bat
 from scrapers.golden1 import scrape_golden1_jobs, fetch_golden1_descriptions_batch
 from database import init_db, save_job, get_new_jobs, get_new_jobs_as_dicts, update_job_analysis, update_job_failed_analysis, update_job_skip_reason, update_job_title, DB_NAME, reset_failed_analyses, get_jobs_needing_analysis, get_jobs_to_refilter, export_to_excel, generate_job_id
 from ai_analyzer import JobAnalyzer
+from keyword_builder import get_keywords_for_site
 from dotenv import load_dotenv
 
 # Try to import config, but handle missing config.py gracefully
@@ -227,11 +228,12 @@ def select_sites():
     print(" 15) RE-ANALYZE DATABASE (Skip scraping, run AI on existing jobs)")
     print(" 16) REFILTER EXISTING JOBS (Apply new filters to all DB jobs)")
     print(" 17) ANALYZE UNANALYZED (Fetch missing descriptions + analyze all DB jobs)")
+    print(" 18) 🎯 SOC FEEDER MODE (Search + prioritize SOC-adjacent & internship roles)")
 
     all_false = {"pge": False, "smud": False, "kaiser": False, "state_ca": False, "ucdavis": False, "sutter": False, "commonspirit": False, "government_jobs": False, "intel": False, "blueshield": False, "losrios": False, "golden1": False}
 
     while True:
-        choice = input("\nEnter choice (0-17): ").strip()
+        choice = input("\nEnter choice (0-18): ").strip()
         if choice == "0":
             # Run setup wizard and return to menu (requires Flask)
             try:
@@ -277,8 +279,10 @@ def select_sites():
             return {}, "refilter"
         elif choice == "17":
             return {}, "unanalyzed"
+        elif choice == "18":
+            return {k: True for k in all_false}, "soc_feeder"
         else:
-            print("Invalid choice. Please enter 0-17.")
+            print("Invalid choice. Please enter 0-18.")
 
 
 async def main():
@@ -354,14 +358,16 @@ async def main():
         # PG&E
         if selected_sites.get("pge", False):
             print("\n📍 Scraping PG&E Jobs...")
-            for query in SEARCH_QUERIES:
+            pge_keywords = get_keywords_for_site('pge', config)
+            for query in pge_keywords:
                 raw_jobs = await scrape_pge_jobs(query, headless=False)
                 all_raw_jobs.extend(raw_jobs)
-        
+
         # SMUD - scrape ALL categories + keyword searches in one go
         if selected_sites.get("smud", False):
             print("\n📍 Scraping SMUD Jobs (all categories + keywords)...")
-            raw_jobs = await scrape_all_smud_jobs(SEARCH_QUERIES, headless=False)
+            smud_keywords = get_keywords_for_site('smud', config)
+            raw_jobs = await scrape_all_smud_jobs(smud_keywords, headless=False)
             all_raw_jobs.extend(raw_jobs)
         
         # Kaiser Permanente - scrape ALL California jobs, then filter
@@ -374,9 +380,10 @@ async def main():
         # State of California - scrape multiple keywords with configured location
         if selected_sites.get("state_ca", False):
             print(f"\n📍 Scraping State of California Jobs ({STATE_CA_LOCATION or 'All Locations'})...")
+            state_ca_keywords = get_keywords_for_site('state_ca', config)
             raw_jobs = await scrape_state_ca_jobs(
-                search_queries=STATE_CA_KEYWORDS, 
-                location=STATE_CA_LOCATION, 
+                search_queries=state_ca_keywords,
+                location=STATE_CA_LOCATION,
                 headless=False
             )
             all_raw_jobs.extend(raw_jobs)
@@ -384,8 +391,9 @@ async def main():
         # UC Davis - scrape multiple keywords
         if selected_sites.get("ucdavis", False):
             print(f"\n📍 Scraping UC Davis Jobs...")
+            ucdavis_keywords = get_keywords_for_site('ucdavis', config)
             raw_jobs = await scrape_ucdavis_jobs(
-                search_queries=UCDAVIS_KEYWORDS,
+                search_queries=ucdavis_keywords,
                 headless=False
             )
             all_raw_jobs.extend(raw_jobs)
@@ -393,8 +401,9 @@ async def main():
         # Sutter Health - scrape multiple keywords (pure HTTP, no browser)
         if selected_sites.get("sutter", False):
             print(f"\n📍 Scraping Sutter Health Jobs...")
+            sutter_keywords = get_keywords_for_site('sutter', config)
             raw_jobs = await scrape_sutter_jobs(
-                search_queries=SUTTER_KEYWORDS,
+                search_queries=sutter_keywords,
                 headless=False
             )
             all_raw_jobs.extend(raw_jobs)
@@ -416,8 +425,9 @@ async def main():
         # GovernmentJobs.com - scrape security/IT analyst roles (pure HTTP, no browser)
         if selected_sites.get("government_jobs", False):
             print(f"\n📍 Scraping GovernmentJobs.com (Government IT & Security Roles)...")
+            gov_keywords = get_keywords_for_site('government_jobs', config)
             raw_jobs = await scrape_government_jobs(
-                keywords=GOVERNMENT_JOBS_KEYWORDS,
+                keywords=gov_keywords,
                 location=GOVERNMENT_JOBS_LOCATION,
                 distance=GOVERNMENT_JOBS_DISTANCE,
                 max_pages=GOVERNMENT_JOBS_MAX_PAGES
@@ -436,8 +446,9 @@ async def main():
         # Blue Shield of California - Oracle Taleo (browser automation)
         if selected_sites.get("blueshield", False):
             print(f"\n📍 Scraping Blue Shield of California Jobs...")
+            blueshield_keywords = get_keywords_for_site('blueshield', config)
             raw_jobs = await scrape_blueshield_jobs(
-                search_queries=BLUESHIELD_KEYWORDS,
+                search_queries=blueshield_keywords,
                 headless=False
             )
             all_raw_jobs.extend(raw_jobs)
@@ -445,8 +456,9 @@ async def main():
         # Los Rios Community College District - NEOGOV/SchoolJobs.com (HTTP)
         if selected_sites.get("losrios", False):
             print(f"\n📍 Scraping Los Rios Community College District Jobs...")
+            losrios_keywords = get_keywords_for_site('losrios', config)
             raw_jobs = await scrape_losrios_jobs(
-                search_queries=LOSRIOS_KEYWORDS,
+                search_queries=losrios_keywords,
                 headless=False
             )
             all_raw_jobs.extend(raw_jobs)
@@ -581,6 +593,15 @@ async def main():
     elif mode == "refilter":
         refilter_existing_jobs()
         return # Exit after refilter, user can then run ANALYZE UNANALYZED
+
+    elif mode == "soc_feeder":
+        print("\n" + "="*60)
+        print("🎯 SOC FEEDER MODE ACTIVE")
+        print("Searching for SOC-adjacent & internship roles...")
+        print("="*60)
+        # Reset to scrape mode but with expanded keywords
+        mode = "scrape"
+        # Set up to use expanded keywords (keyword_builder will handle this)
 
     elif mode == "unanalyzed":
         print("\n📍 ANALYZE UNANALYZED: Finding ALL DB jobs not yet successfully analyzed...")
