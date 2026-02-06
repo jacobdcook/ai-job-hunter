@@ -347,7 +347,12 @@ async def main():
     # Track which sources are active for this run (for filtering top matches later)
     active_sources = [SITE_SOURCE_MAP[k] for k, v in selected_sites.items() if v] if selected_sites else []
 
-    if mode == "scrape":
+    if mode == "scrape" or mode == "soc_feeder":
+        if mode == "soc_feeder":
+            print("\n" + "="*60)
+            print("🎯 SOC FEEDER MODE ACTIVE")
+            print("Searching for SOC-adjacent & internship roles...")
+            print("="*60)
         print(f"\nSearch queries: {', '.join(SEARCH_QUERIES)}")
         print(f"Selected sites: {[k.upper() for k, v in selected_sites.items() if v]}")
         print("-"*60)
@@ -593,15 +598,6 @@ async def main():
     elif mode == "refilter":
         refilter_existing_jobs()
         return # Exit after refilter, user can then run ANALYZE UNANALYZED
-
-    elif mode == "soc_feeder":
-        print("\n" + "="*60)
-        print("🎯 SOC FEEDER MODE ACTIVE")
-        print("Searching for SOC-adjacent & internship roles...")
-        print("="*60)
-        # Reset to scrape mode but with expanded keywords
-        mode = "scrape"
-        # Set up to use expanded keywords (keyword_builder will handle this)
 
     elif mode == "unanalyzed":
         print("\n📍 ANALYZE UNANALYZED: Finding ALL DB jobs not yet successfully analyzed...")
@@ -961,7 +957,7 @@ async def main():
     if filtered_jobs:
         filtered_links = {job['link'] for job in filtered_jobs}
         jobs_to_analyze = [j for j in jobs_to_analyze if j[2] in filtered_links]
-    elif mode == "scrape":
+    elif mode == "scrape" or mode == "soc_feeder":
         # If scraping mode and no filtered jobs, nothing to do
         jobs_to_analyze = []
 
