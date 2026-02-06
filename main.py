@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 
 # Try to import config, but handle missing config.py gracefully
 try:
+    import config
     from config import SEARCH_QUERIES, NOISE_KEYWORDS, ENTRY_LEVEL_INDICATORS, ENABLED_SITES, IGNORE_FIELDS, INTEREST_KEYWORDS
     from config import TITLE_MUST_CONTAIN, BOGUS_TITLES
     from config import STATE_CA_LOCATION, STATE_CA_KEYWORDS
