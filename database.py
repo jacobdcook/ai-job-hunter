@@ -39,7 +39,17 @@ def init_db():
     except sqlite3.OperationalError:
         print("Adding 'source' column to database...")
         c.execute("ALTER TABLE jobs ADD COLUMN source TEXT")
-    
+
+    # Check if SOC feeder columns exist (for migration)
+    try:
+        c.execute("SELECT feeder_category FROM jobs LIMIT 1")
+    except sqlite3.OperationalError:
+        print("Adding SOC feeder columns to database...")
+        c.execute("ALTER TABLE jobs ADD COLUMN feeder_category TEXT")
+        c.execute("ALTER TABLE jobs ADD COLUMN feeder_score INTEGER")
+        c.execute("ALTER TABLE jobs ADD COLUMN feeder_reasons TEXT")
+        c.execute("ALTER TABLE jobs ADD COLUMN priority_score REAL")
+
     conn.commit()
     conn.close()
 
@@ -89,10 +99,23 @@ def update_job_analysis(job_id, score, missing_skills, analysis):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute('''
-        UPDATE jobs 
+        UPDATE jobs
         SET match_score = ?, missing_skills = ?, analysis = ?, status = 'analyzed'
         WHERE id = ?
     ''', (score, missing_skills, analysis, job_id))
+    conn.commit()
+    conn.close()
+
+
+def update_job_feeder_classification(job_id, feeder_category, feeder_score, feeder_reasons, priority_score):
+    """Update job with SOC feeder classification and priority score."""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''
+        UPDATE jobs
+        SET feeder_category = ?, feeder_score = ?, feeder_reasons = ?, priority_score = ?
+        WHERE id = ?
+    ''', (feeder_category, feeder_score, feeder_reasons, priority_score, job_id))
     conn.commit()
     conn.close()
 
@@ -111,7 +134,7 @@ def update_job_failed_analysis(job_id, error_message, status="rate_limited"):
 
 
 def update_job_skip_reason(job_id, reason):
-    """Mark job as skipped with a reason (shows in Excel Notes)."""
+    """Mark job as skipped with a reason (stored in DB; visible in AI Analysis column in Excel)."""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute('''
@@ -196,10 +219,10 @@ def export_to_excel(filename=None):
         filename = "jobs_master.xlsx"  # Single master file - always overwrites
     
     conn = sqlite3.connect(DB_NAME)
-    
-    # Get ALL jobs from database with source
+
+    # Get ALL jobs from database with source and feeder classification
     query = """
-        SELECT 
+        SELECT
             title,
             location,
             match_score,
@@ -209,12 +232,17 @@ def export_to_excel(filename=None):
             date_posted,
             status,
             last_seen,
-            source
+            source,
+            feeder_category,
+            feeder_score,
+            feeder_reasons,
+            priority_score
         FROM jobs
-        ORDER BY 
-            CASE 
+        ORDER BY
+            CASE
+                WHEN priority_score IS NOT NULL THEN priority_score
                 WHEN match_score IS NULL THEN 0
-                ELSE match_score 
+                ELSE match_score
             END DESC,
             title ASC
     """
@@ -233,7 +261,7 @@ def export_to_excel(filename=None):
         if status == 'no_description':
             return "NO DESCRIPTION"
         if status == 'skipped_filter':
-            return "SKIPPED (see Notes)"
+            return "SKIPPED"
         if status == 'skipped_ai_title':
             return "SKIPPED BY AI"
         if status == 'rate_limited':
@@ -251,34 +279,27 @@ def export_to_excel(filename=None):
 
     df['Priority'] = df.apply(get_priority, axis=1)
 
-    # Add Notes column: why no description / why skipped (so you have context at a glance)
-    def get_notes(row):
-        status = row['status']
-        analysis = row['analysis'] if pd.notna(row['analysis']) and str(row['analysis']).strip() else ""
-        if status == 'skipped_filter' and analysis:
-            return analysis
-        if status == 'skipped_ai_title':
-            return "Skipped by AI (title not relevant to your background)"
-        if status == 'no_description':
-            return "No description (not fetched or job removed from source)"
-        if status == 'rate_limited':
-            return "Rate limit reached (will retry on next ANALYZE UNANALYZED)"
-        if status == 'failed' and analysis:
-            return analysis
-        if status == 'new':
-            return "Not yet analyzed — run option 12 (ANALYZE UNANALYZED) to fetch descriptions and run AI"
-        return ""
+    # Applied column: Yes/No for tracking applications (preserve from existing Excel on re-export)
+    df['Applied'] = ""
+    if os.path.exists(filename):
+        try:
+            existing = pd.read_excel(filename, sheet_name='All Jobs')
+            if 'Apply Link' in existing.columns and 'Applied' in existing.columns:
+                link_to_applied = existing.set_index('Apply Link')['Applied'].to_dict()
+                df['Applied'] = df['link'].map(lambda u: link_to_applied.get(u, "") if pd.notna(u) else "")
+        except Exception:
+            pass
 
-    df['Notes'] = df.apply(get_notes, axis=1)
-
-    # Reorder columns for better readability (include source and Notes)
-    column_order = ['Priority', 'Notes', 'match_score', 'title', 'location', 'source', 'link',
-                   'missing_skills', 'analysis', 'date_posted', 'last_seen', 'status']
+    # Reorder columns (Applied right after Priority, then SOC feeder info)
+    column_order = ['Priority', 'Applied', 'match_score', 'priority_score', 'feeder_category', 'feeder_score',
+                   'title', 'location', 'source', 'link', 'missing_skills', 'analysis', 'feeder_reasons',
+                   'date_posted', 'last_seen', 'status']
     df = df[column_order]
 
     # Rename columns for cleaner Excel output
-    df.columns = ['Priority', 'Notes', 'Score', 'Job Title', 'Location', 'Source', 'Apply Link',
-                  'Missing Skills', 'AI Analysis', 'Date Posted', 'Last Seen (Active)', 'Status']
+    df.columns = ['Priority', 'Applied', 'Score', 'Combined Priority', 'Category', 'Feeder Score',
+                  'Job Title', 'Location', 'Source', 'Apply Link', 'Missing Skills', 'AI Analysis',
+                  'Why SOC Feeder', 'Date Posted', 'Last Seen (Active)', 'Status']
     
     from openpyxl.styles import Font, PatternFill, Alignment
     

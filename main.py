@@ -11,6 +11,9 @@ from scrapers.sutter import scrape_sutter_jobs, fetch_sutter_descriptions_batch
 from scrapers.commonspirit import scrape_commonspirit_jobs, fetch_commonspirit_descriptions_batch
 from scrapers.government_jobs import scrape_government_jobs, fetch_job_details
 from scrapers.intel import scrape_intel_jobs, fetch_intel_descriptions_batch
+from scrapers.blueshield import scrape_blueshield_jobs, fetch_blueshield_descriptions_batch
+from scrapers.losrios import scrape_losrios_jobs, fetch_losrios_descriptions_batch
+from scrapers.golden1 import scrape_golden1_jobs, fetch_golden1_descriptions_batch
 from database import init_db, save_job, get_new_jobs, get_new_jobs_as_dicts, update_job_analysis, update_job_failed_analysis, update_job_skip_reason, update_job_title, DB_NAME, reset_failed_analyses, get_jobs_needing_analysis, get_jobs_to_refilter, export_to_excel, generate_job_id
 from ai_analyzer import JobAnalyzer
 from dotenv import load_dotenv
@@ -25,6 +28,8 @@ try:
     from config import COMMONSPIRIT_MAX_PAGES, COMMONSPIRIT_ZIP
     from config import GOVERNMENT_JOBS_LOCATION, GOVERNMENT_JOBS_DISTANCE, GOVERNMENT_JOBS_KEYWORDS, GOVERNMENT_JOBS_MAX_PAGES
     from config import INTEL_USE_LOCATION_FILTER, INTEL_MAX_JOBS
+    from config import BLUESHIELD_KEYWORDS, LOSRIOS_KEYWORDS
+    from config import GOLDEN1_MAX_PAGES
 except ImportError as e:
     # config.py doesn't exist - will prompt user in main()
     SEARCH_QUERIES = []
@@ -47,6 +52,9 @@ except ImportError as e:
     GOVERNMENT_JOBS_MAX_PAGES = 20
     INTEL_USE_LOCATION_FILTER = True
     INTEL_MAX_JOBS = 200
+    BLUESHIELD_KEYWORDS = ["IT", "Security", "Analyst", "Support", "Technician", "Systems", "Network"]
+    LOSRIOS_KEYWORDS = ["IT", "Security", "Analyst", "Support", "Technician", "Information Technology"]
+    GOLDEN1_MAX_PAGES = 15
 
 
 # Map site keys to their display source names (must match scraper SITE_NAME values)
@@ -60,6 +68,9 @@ SITE_SOURCE_MAP = {
     "commonspirit": "CommonSpirit",
     "government_jobs": "GovernmentJobs.com",
     "intel": "Intel",
+    "blueshield": "Blue Shield of California",
+    "losrios": "Los Rios Community College District",
+    "golden1": "Golden 1 Credit Union",
 }
 
 import re
@@ -208,16 +219,19 @@ def select_sites():
     print("  7) CommonSpirit Health only")
     print("  8) GovernmentJobs.com only")
     print("  9) Intel Corporation only")
-    print(" 10) All sites (PG&E + SMUD + Kaiser + State CA + UC Davis + Sutter + CommonSpirit + Government Jobs + Intel)")
-    print(" 11) Use config.py settings")
-    print(" 12) RE-ANALYZE DATABASE (Skip scraping, run AI on existing jobs)")
-    print(" 13) REFILTER EXISTING JOBS (Apply new filters to all DB jobs)")
-    print(" 14) ANALYZE UNANALYZED (Fetch missing descriptions + analyze all DB jobs)")
+    print(" 10) Blue Shield of California only")
+    print(" 11) Los Rios Community College District only")
+    print(" 12) Golden 1 Credit Union only")
+    print(" 13) All sites (PG&E + SMUD + Kaiser + State CA + UC Davis + Sutter + CommonSpirit + Government Jobs + Intel + Blue Shield + Los Rios + Golden 1)")
+    print(" 14) Use config.py settings")
+    print(" 15) RE-ANALYZE DATABASE (Skip scraping, run AI on existing jobs)")
+    print(" 16) REFILTER EXISTING JOBS (Apply new filters to all DB jobs)")
+    print(" 17) ANALYZE UNANALYZED (Fetch missing descriptions + analyze all DB jobs)")
 
-    all_false = {"pge": False, "smud": False, "kaiser": False, "state_ca": False, "ucdavis": False, "sutter": False, "commonspirit": False, "government_jobs": False, "intel": False}
+    all_false = {"pge": False, "smud": False, "kaiser": False, "state_ca": False, "ucdavis": False, "sutter": False, "commonspirit": False, "government_jobs": False, "intel": False, "blueshield": False, "losrios": False, "golden1": False}
 
     while True:
-        choice = input("\nEnter choice (0-14): ").strip()
+        choice = input("\nEnter choice (0-17): ").strip()
         if choice == "0":
             # Run setup wizard and return to menu (requires Flask)
             try:
@@ -248,17 +262,23 @@ def select_sites():
         elif choice == "9":
             return {**all_false, "intel": True}, "scrape"
         elif choice == "10":
-            return {k: True for k in all_false}, "scrape"
+            return {**all_false, "blueshield": True}, "scrape"
         elif choice == "11":
-            return ENABLED_SITES.copy(), "scrape"
+            return {**all_false, "losrios": True}, "scrape"
         elif choice == "12":
-            return {}, "reanalyze"
+            return {**all_false, "golden1": True}, "scrape"
         elif choice == "13":
-            return {}, "refilter"
+            return {k: True for k in all_false}, "scrape"
         elif choice == "14":
+            return ENABLED_SITES.copy(), "scrape"
+        elif choice == "15":
+            return {}, "reanalyze"
+        elif choice == "16":
+            return {}, "refilter"
+        elif choice == "17":
             return {}, "unanalyzed"
         else:
-            print("Invalid choice. Please enter 0-14.")
+            print("Invalid choice. Please enter 0-17.")
 
 
 async def main():
@@ -413,6 +433,33 @@ async def main():
             )
             all_raw_jobs.extend(raw_jobs)
 
+        # Blue Shield of California - Oracle Taleo (browser automation)
+        if selected_sites.get("blueshield", False):
+            print(f"\n📍 Scraping Blue Shield of California Jobs...")
+            raw_jobs = await scrape_blueshield_jobs(
+                search_queries=BLUESHIELD_KEYWORDS,
+                headless=False
+            )
+            all_raw_jobs.extend(raw_jobs)
+
+        # Los Rios Community College District - NEOGOV/SchoolJobs.com (HTTP)
+        if selected_sites.get("losrios", False):
+            print(f"\n📍 Scraping Los Rios Community College District Jobs...")
+            raw_jobs = await scrape_losrios_jobs(
+                search_queries=LOSRIOS_KEYWORDS,
+                headless=False
+            )
+            all_raw_jobs.extend(raw_jobs)
+
+        # Golden 1 Credit Union - Dayforce HCM (API + browser for session)
+        if selected_sites.get("golden1", False):
+            print(f"\n📍 Scraping Golden 1 Credit Union Jobs...")
+            raw_jobs = await scrape_golden1_jobs(
+                max_pages=GOLDEN1_MAX_PAGES,
+                headless=False
+            )
+            all_raw_jobs.extend(raw_jobs)
+
         # Deduplicate by link
         unique_jobs_dict = {job['link']: job for job in all_raw_jobs}
         unique_jobs = list(unique_jobs_dict.values())
@@ -498,10 +545,13 @@ async def main():
         print("  7) CommonSpirit Health")
         print("  8) GovernmentJobs.com")
         print("  9) Intel Corporation")
-        print(" 10) ALL")
+        print(" 10) Blue Shield of California")
+        print(" 11) Los Rios Community College District")
+        print(" 12) Golden 1 Credit Union")
+        print(" 13) ALL")
 
-        source_choice = input("\nEnter choice (1-10): ").strip()
-        source_map = {"1": "State of California", "2": "PG&E", "3": "SMUD", "4": "Kaiser Permanente", "5": "UC Davis", "6": "Sutter Health", "7": "CommonSpirit", "8": "GovernmentJobs.com", "9": "Intel"}
+        source_choice = input("\nEnter choice (1-13): ").strip()
+        source_map = {"1": "State of California", "2": "PG&E", "3": "SMUD", "4": "Kaiser Permanente", "5": "UC Davis", "6": "Sutter Health", "7": "CommonSpirit", "8": "GovernmentJobs.com", "9": "Intel", "10": "Blue Shield of California", "11": "Los Rios Community College District", "12": "Golden 1 Credit Union"}
         target_source = source_map.get(source_choice)
         if target_source:
             active_sources = [target_source]
@@ -811,6 +861,51 @@ async def main():
             conn.commit()
             conn.close()
 
+        # Fetch Blue Shield descriptions
+        blueshield_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Blue Shield of California']
+        if blueshield_to_fetch:
+            print(f"  [Blue Shield] Fetching descriptions for {len(blueshield_to_fetch)} jobs (Oracle Taleo, browser automation, 2-4s delays)...")
+            descriptions = await fetch_blueshield_descriptions_batch(blueshield_to_fetch, headless=False)
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            for job in blueshield_to_fetch:
+                job_id = generate_job_id(job['link'])
+                desc = descriptions.get(job['link'], '')
+                if desc:
+                    c.execute("UPDATE jobs SET description = ? WHERE id = ?", (desc, job_id))
+            conn.commit()
+            conn.close()
+
+        # Fetch Los Rios descriptions
+        losrios_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Los Rios Community College District']
+        if losrios_to_fetch:
+            print(f"  [Los Rios] Fetching descriptions for {len(losrios_to_fetch)} jobs (NEOGOV, pure HTTP, 2-4s delays)...")
+            descriptions = await fetch_losrios_descriptions_batch(losrios_to_fetch, headless=False)
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            for job in losrios_to_fetch:
+                job_id = generate_job_id(job['link'])
+                desc = descriptions.get(job['link'], '')
+                if desc:
+                    c.execute("UPDATE jobs SET description = ? WHERE id = ?", (desc, job_id))
+            conn.commit()
+            conn.close()
+
+        # Fetch Golden 1 descriptions (usually included in listing, this is for fallback)
+        golden1_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Golden 1 Credit Union']
+        if golden1_to_fetch:
+            print(f"  [Golden 1] Fetching descriptions for {len(golden1_to_fetch)} jobs (Dayforce API, 2s delays)...")
+            descriptions = await fetch_golden1_descriptions_batch(golden1_to_fetch, headless=False)
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            for job in golden1_to_fetch:
+                job_id = generate_job_id(job['link'])
+                desc = descriptions.get(job['link'], '')
+                if desc:
+                    c.execute("UPDATE jobs SET description = ? WHERE id = ?", (desc, job_id))
+            conn.commit()
+            conn.close()
+
         print(f"Descriptions fetched and saved.")
 
         # Mark jobs that STILL have no description after fetch attempt
@@ -874,6 +969,22 @@ async def main():
             try:
                 score, missing_skills, brief_analysis = analyzer.analyze_job(title, desc)
                 update_job_analysis(job_id, score, missing_skills, brief_analysis)
+
+                # Apply SOC feeder classification
+                try:
+                    from job_classifier import classify_and_score_job, update_job_feeder_classification
+                    classification = classify_and_score_job(title, desc, score)
+                    priority_score = classification['priority_score']
+                    update_job_feeder_classification(
+                        job_id,
+                        classification['category'],
+                        classification['feeder_score'],
+                        " | ".join(classification['reasons']),
+                        priority_score
+                    )
+                except Exception as c_err:
+                    pass  # Silently fail classification; job still has Groq score
+
                 print(f"Score: {score}/10")
             except Exception as e:
                 err_msg = str(e)

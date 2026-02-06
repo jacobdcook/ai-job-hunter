@@ -321,3 +321,49 @@ TITLE_MUST_CONTAIN = [
 BOGUS_TITLES = [
     "train", "trained", "trainers", "trains", "rotation", "rotational"
 ]
+
+# =============================================================================
+# SOC FEEDER PATH CONFIGURATION (NEW)
+# =============================================================================
+# Enable/disable SOC Feeder Mode (prioritizes SOC-adjacent and feeder roles)
+ENABLE_SOC_FEEDER_MODE = True
+
+# Minimum feeder score to keep job (0-100, default 30 = include most roles)
+# Higher = stricter filtering. 0 = include everything, 100 = only SOC_DIRECT
+MIN_FEEDER_SCORE_TO_KEEP = 30
+
+# If True, include unpaid internships/apprenticeships in results
+INCLUDE_UNPAID_INTERNSHIPS = True
+
+# If True and a Help Desk/IT Support role has IT context keywords, keep it
+# If False, filter all customer service roles as AVOID
+ALLOW_HELP_DESK_WITH_IT_CONTEXT = True
+
+# Expand keyword searches to include SOC feeder roles (not just generic IT)
+# Adds: SOC_DIRECT, NOC, IAM, ENDPOINT, SIEM, etc. to searches
+EXPAND_SEARCHES_WITH_SOC_KEYWORDS = True
+
+# Which feeder categories to prioritize in searches (weights determine order)
+# Options: "NOC_OPERATIONS", "IAM_ACCESS", "ENDPOINT_EDR", "VULNERABILITY_PATCH",
+#          "FIREWALL_NETWORK", "SIEM_LOGGING", "GRC_COMPLIANCE", "IT_SUPPORT_SECURITY"
+SOC_FEEDER_SEARCH_PRIORITY = [
+    "SIEM_LOGGING",          # Splunk, Elasticsearch, etc. - very high value
+    "NOC_OPERATIONS",        # 24x7 monitoring, event triage
+    "ENDPOINT_EDR",          # Crowdstrike, Defender, Intune
+    "IAM_ACCESS",            # Active Directory, Okta, Azure AD
+    "VULNERABILITY_PATCH",   # Patch management, vuln scanning
+    "FIREWALL_NETWORK",      # Palo Alto, Cisco, network security
+    "IT_SUPPORT_SECURITY",   # Help Desk with IT/security exposure
+    "GRC_COMPLIANCE",        # Compliance, audit, policy (lower priority)
+]
+
+# Override feeder weights per category (0-100, default uses taxonomy.py weights)
+# Leave empty dict {} to use defaults from taxonomy.py
+FEEDER_WEIGHT_OVERRIDES = {}
+
+# Example customization:
+# FEEDER_WEIGHT_OVERRIDES = {
+#     "SIEM_LOGGING": 100,        # Highest priority
+#     "NOC_OPERATIONS": 85,
+#     "GRC_COMPLIANCE": 40,       # Lower priority if you want
+# }
