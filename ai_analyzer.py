@@ -225,6 +225,76 @@ Example (if jobs 0, 2, 5, 7, 9, 12 are all relevant):
             print(f"Error calling Groq API for title filtering: {e}")
             return jobs # Return all if AI filtering fails
 
+    def analyze_jobs_batch(self, jobs_batch):
+        """Analyze multiple jobs in a single API call. Returns list of (score, missing_skills, analysis) tuples."""
+        if not self.client or not jobs_batch:
+            return [(0, "GROQ API key missing", "N/A")] * len(jobs_batch)
+
+        jobs_text = ""
+        for idx, (title, desc) in enumerate(jobs_batch):
+            truncated = desc[:1500] if desc else "No description"
+            jobs_text += f"\n---JOB {idx}---\nTitle: {title}\nDescription: {truncated}\n"
+
+        prompt = f"""Given this candidate's background:
+{YOUR_BACKGROUND}
+
+SCORING RULES (MUST FOLLOW):
+- This candidate is ENTRY-LEVEL with 0 years professional IT/security experience (warehouse background + home labs + CS degree).
+- If the role title contains "Senior", "Sr.", "Principal", "Lead", "Expert", "Director", "Manager", "Supervisor", "III", "IV", "V" or requires 3+ years of direct experience: score 1-3 MAX.
+- Roles with "II" or requiring 1-3 years experience: score 1-5 MAX.
+- Only score 7+ for genuinely entry-level, junior, associate, trainee, intern, or no-seniority-requirement roles.
+
+Analyze how well this candidate matches EACH of the following {len(jobs_batch)} jobs.
+For each job, provide match_score (1-10), missing_skills (list), and brief_analysis (2-3 sentences).
+
+{jobs_text}
+
+Return JSON with key "results" containing an array of {len(jobs_batch)} objects, one per job IN ORDER:
+{{
+  "results": [
+    {{"match_score": 8, "missing_skills": ["Skill A"], "brief_analysis": "..."}},
+    ...
+  ]
+}}"""
+
+        try:
+            response = self._call_api(
+                messages=[
+                    {"role": "system", "content": "You are a specialized technical recruiter helping a candidate find the best job matches. Analyze ALL jobs provided and return results for each one."},
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.default_model,
+                response_format={"type": "json_object"}
+            )
+
+            result = json.loads(response.choices[0].message.content)
+            results_list = result.get("results", [])
+
+            parsed = []
+            for i in range(len(jobs_batch)):
+                if i < len(results_list):
+                    r = results_list[i]
+                    raw_score = r.get("match_score", 0)
+                    try:
+                        score_val = float(raw_score) if raw_score is not None else 0
+                        if score_val > 10 and score_val <= 100:
+                            score_val = round(score_val / 10)
+                        score_val = max(1, min(10, int(round(score_val))))
+                    except (TypeError, ValueError):
+                        score_val = 0
+                    raw_missing = r.get("missing_skills", [])
+                    if isinstance(raw_missing, str):
+                        missing_list = [raw_missing] if raw_missing else []
+                    else:
+                        missing_list = [str(x) if isinstance(x, str) else (x.get("skill", x.get("name", str(x))) if isinstance(x, dict) else str(x)) for x in (raw_missing or [])]
+                    parsed.append((score_val, ", ".join(missing_list), r.get("brief_analysis", "No analysis provided.")))
+                else:
+                    parsed.append((0, "Batch incomplete", "Job was not analyzed in batch response"))
+            return parsed
+        except Exception as e:
+            print(f"Batch analysis error: {e}")
+            raise
+
     def analyze_job(self, job_title, job_description):
         if not self.client:
             return 0, "GROQ API key missing", "N/A"
@@ -232,6 +302,12 @@ Example (if jobs 0, 2, 5, 7, 9, 12 are all relevant):
         prompt = f"""
 Given this candidate's background:
 {YOUR_BACKGROUND}
+
+SCORING RULES (MUST FOLLOW):
+- This candidate is ENTRY-LEVEL with 0 years professional IT/security experience (warehouse background + home labs + CS degree).
+- If the role title contains "Senior", "Sr.", "Principal", "Lead", "Expert", "Director", "Manager", "Supervisor", "III", "IV", "V" or requires 3+ years of direct experience: score 1-3 MAX.
+- Roles with "II" or requiring 1-3 years experience: score 1-5 MAX.
+- Only score 7+ for genuinely entry-level, junior, associate, trainee, intern, or no-seniority-requirement roles.
 
 And this job posting:
 Title: {job_title}

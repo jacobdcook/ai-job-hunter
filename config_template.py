@@ -109,6 +109,23 @@ INTEL_USE_LOCATION_FILTER = True  # True = Sacramento area (Folsom + nearby), Fa
 INTEL_MAX_JOBS = 200  # Max jobs to scrape (default 200)
 
 # =============================================================================
+# PREFERRED CITIES (for "Near Me" Excel tab)
+# =============================================================================
+# Jobs with locations matching these cities get their own "Near Me" tab in Excel.
+# This helps you prioritize local jobs while still seeing all jobs in the "All Jobs" tab.
+# Case-insensitive substring match against the job's location field.
+# Example: "Sacramento" matches "Sacramento, CA", "North Sacramento", etc.
+#
+# INSTRUCTIONS: Add the cities you live near or would commute to.
+PREFERRED_CITIES = [
+    # "Sacramento",
+    # "San Francisco",
+    # "Oakland",
+    # "San Jose",
+    # "Remote",
+]
+
+# =============================================================================
 # SEARCH QUERIES
 # =============================================================================
 # These keywords will be used for searching job sites.
@@ -136,6 +153,14 @@ ENTRY_LEVEL_INDICATORS = [
 # Jobs with these words in the title are filtered OUT (unless they have an entry-level indicator)
 # This is where you put "Senior", "Manager", etc.
 NOISE_KEYWORDS = ["Senior", "Expert", "Principal", "Lead", "Chief", "Director", "Manager"]
+
+# Hard seniority filter - ALWAYS filters these out even if title has interest keywords.
+# Unlike NOISE_KEYWORDS (which are overridden by INTEREST_KEYWORDS), these are absolute.
+SENIORITY_EXCLUDE = [
+    "Senior", "Sr.", "Sr ", "Principal", "Lead", "Expert",
+    "Director", "Manager", "Supervisor", "Chief", "VP",
+    "Vice President", "Head of", "III", "IV", "V",
+]
 
 # Ignore these fields entirely (substring match, case-insensitive).
 # INSTRUCTIONS: Add any keywords here that you want to IMMEDIATELY discard.
@@ -323,13 +348,40 @@ BOGUS_TITLES = [
 ]
 
 # =============================================================================
-# SOC FEEDER PATH CONFIGURATION (NEW)
+# CAREER PATH PRIORITIZATION ("Target Role Mode")
 # =============================================================================
-# Enable/disable SOC Feeder Mode (prioritizes SOC-adjacent and feeder roles)
+# This system helps you prioritize jobs that are stepping stones toward your
+# dream role. It classifies every job into 4 tiers:
+#
+#   TARGET_DIRECT  = Jobs that ARE your target role (highest priority)
+#   TARGET_ADJACENT = Jobs closely related to your target (high priority)
+#   CAREER_FEEDER   = General IT/tech roles that build toward your target
+#   AVOID           = Unrelated roles (still shown, but ranked lowest)
+#
+# HOW IT WORKS:
+#   The system searches job titles and descriptions for keywords you define
+#   in taxonomy.py. Jobs matching TARGET_DIRECT keywords rank highest,
+#   TARGET_ADJACENT next, then CAREER_FEEDER, then everything else.
+#
+# HOW TO CUSTOMIZE FOR YOUR OWN CAREER PATH:
+#   1. Open taxonomy.py
+#   2. Edit SOC_DIRECT_KEYWORDS → put YOUR target role keywords
+#      (Example for SOC analyst: "soc analyst", "incident response", "siem analyst")
+#      (Example for DevOps: "devops", "site reliability", "platform engineer", "cicd")
+#      (Example for Data Science: "data scientist", "machine learning", "ml engineer")
+#   3. Edit SOC_ADJACENT → put related/stepping-stone role categories + keywords
+#      (Example for SOC: NOC operations, SIEM tools, endpoint security)
+#      (Example for DevOps: cloud ops, kubernetes, infrastructure automation)
+#      (Example for Data Science: data analyst, business intelligence, ETL)
+#   4. Edit IT_FEEDER_KEYWORDS → general tech roles that build foundational skills
+#
+# The default taxonomy.py is set up for SOC Analyst / Cybersecurity careers.
+# See taxonomy.py for the full keyword lists and weights.
+#
 ENABLE_SOC_FEEDER_MODE = True
 
 # Minimum feeder score to keep job (0-100, default 30 = include most roles)
-# Higher = stricter filtering. 0 = include everything, 100 = only SOC_DIRECT
+# Higher = stricter filtering. 0 = include everything, 100 = only TARGET_DIRECT
 MIN_FEEDER_SCORE_TO_KEEP = 30
 
 # If True, include unpaid internships/apprenticeships in results
@@ -339,13 +391,13 @@ INCLUDE_UNPAID_INTERNSHIPS = True
 # If False, filter all customer service roles as AVOID
 ALLOW_HELP_DESK_WITH_IT_CONTEXT = True
 
-# Expand keyword searches to include SOC feeder roles (not just generic IT)
-# Adds: SOC_DIRECT, NOC, IAM, ENDPOINT, SIEM, etc. to searches
+# Expand keyword searches to include target-role-adjacent keywords
+# When True, adds keywords from your taxonomy categories to each site search
 EXPAND_SEARCHES_WITH_SOC_KEYWORDS = True
 
-# Which feeder categories to prioritize in searches (weights determine order)
-# Options: "NOC_OPERATIONS", "IAM_ACCESS", "ENDPOINT_EDR", "VULNERABILITY_PATCH",
-#          "FIREWALL_NETWORK", "SIEM_LOGGING", "GRC_COMPLIANCE", "IT_SUPPORT_SECURITY"
+# Which taxonomy categories to prioritize in searches (order = priority)
+# These must match category names in taxonomy.py's SOC_ADJACENT dict.
+# Default categories (for SOC Analyst path):
 SOC_FEEDER_SEARCH_PRIORITY = [
     "SIEM_LOGGING",          # Splunk, Elasticsearch, etc. - very high value
     "NOC_OPERATIONS",        # 24x7 monitoring, event triage
@@ -356,6 +408,16 @@ SOC_FEEDER_SEARCH_PRIORITY = [
     "IT_SUPPORT_SECURITY",   # Help Desk with IT/security exposure
     "GRC_COMPLIANCE",        # Compliance, audit, policy (lower priority)
 ]
+#
+# EXAMPLE: If you were targeting DevOps instead of SOC, you'd create your own
+# categories in taxonomy.py and list them here:
+# SOC_FEEDER_SEARCH_PRIORITY = [
+#     "CICD_AUTOMATION",       # Jenkins, GitHub Actions, ArgoCD
+#     "CLOUD_INFRASTRUCTURE",  # AWS, GCP, Azure, Terraform
+#     "CONTAINER_ORCHESTRATION", # Kubernetes, Docker, Helm
+#     "MONITORING_OBSERVABILITY", # Datadog, Prometheus, Grafana
+#     "SCRIPTING_AUTOMATION",  # Python, Bash, Ansible
+# ]
 
 # Override feeder weights per category (0-100, default uses taxonomy.py weights)
 # Leave empty dict {} to use defaults from taxonomy.py

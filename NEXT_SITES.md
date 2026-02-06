@@ -46,22 +46,34 @@
      - 2-3 second delays between requests
    - **Config**: Set `SUTTER_KEYWORDS` in config.py
 
-### 📋 MEDIUM PRIORITY
+### 📋 ALREADY COVERED (no separate scraper needed)
 
-5. **City of Sacramento** (`city_sac`)
-   - **URL**: https://www.governmentjobs.com/careers/sacramento
-   - **Why**: Local government IT roles
-   - **Difficulty**: Easy (uses governmentjobs.com - common platform)
+5. **City of Sacramento** — ✅ Covered by **GovernmentJobs.com** scraper (searches by zip 95826 + keywords).
+6. **County of Sacramento** — ✅ Covered by **GovernmentJobs.com** scraper.
+7. **CalPERS** — ✅ Covered by **State of California (CalCareers)** scraper; CalPERS posts on CalCareers.
 
-6. **County of Sacramento** (`county_sac`)
-   - **URL**: https://www.governmentjobs.com/careers/saccounty
-   - **Why**: County IT/security roles
-   - **Difficulty**: Easy (same platform as City)
+### 🔜 NEXT TO ADD (own career sites, not yet scraped)
 
-7. **CalPERS** (`calpers`)
-   - **URL**: https://www.calpers.ca.gov/page/careers
-   - **Why**: Pension fund, IT/security roles
-   - **Difficulty**: Medium
+8. **Golden 1 Credit Union** (`golden1`) ✅ DONE
+   - **URL**: https://jobs.dayforcehcm.com/en-US/golden1/CANDIDATEPORTAL
+   - **Platform**: Dayforce HCM (Next.js + JSON API)
+   - **Why**: Sacramento HQ, IT/security roles (e.g. Business Systems Analyst, Help Desk).
+   - **Features**:
+     - Browser session for Cloudflare/CSRF token
+     - JSON API for job listings with full descriptions included
+     - Pagination via `?page=1`, `?page=2`, etc.
+     - No separate description fetch needed (descriptions in listing response)
+   - **Config**: Set `GOLDEN1_MAX_PAGES` in config.py (default: 15)
+
+9. **VSP Global** (`vsp`) — **Next highest priority**
+   - **URL**: Find their primary careers portal (e.g. careers.vspglobal.com or similar); also on aggregators.
+   - **Why**: Rancho Cordova, large employer, IT/digital roles.
+   - **Difficulty**: Medium (need to confirm platform).
+
+10. **Sacramento State (CSUS)** (`csus`)
+    - **URL**: https://www.csus.edu/administration-business-affairs/human-resources/careers/ (or CSU-wide system).
+    - **Why**: Local university IT, may use different system than UC Davis.
+    - **Difficulty**: Medium (check if CSU-wide job board or separate).
 
 ## Search Strategy
 

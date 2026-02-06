@@ -190,7 +190,9 @@ def get_jobs_needing_analysis():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("""
-        SELECT * FROM jobs
+        SELECT id, title, link, location, date_posted, description,
+               match_score, missing_skills, analysis, status, last_seen, source
+        FROM jobs
         WHERE status IN ('new', 'rate_limited') OR match_score = 0 OR match_score IS NULL
     """)
     rows = c.fetchall()
@@ -258,6 +260,7 @@ def export_to_excel(filename=None):
     def get_priority(row):
         score = row['match_score']
         status = row['status']
+        category = row.get('feeder_category', None)
         if status == 'no_description':
             return "NO DESCRIPTION"
         if status == 'skipped_filter':
@@ -268,7 +271,10 @@ def export_to_excel(filename=None):
             return "RATE LIMITED (retry later)"
         if pd.isna(score) or score is None:
             return "Not Analyzed"
-        elif score >= 8:
+        # AVOID jobs capped at LOW regardless of Groq score
+        if category == 'AVOID':
+            return "LOW PRIORITY 📋" if score >= 1 else "SKIP"
+        if score >= 8:
             return "HIGH PRIORITY ⭐"
         elif score >= 5:
             return "MEDIUM PRIORITY ✅"
@@ -334,9 +340,15 @@ def export_to_excel(filename=None):
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
     
+    # Load preferred cities from config (optional)
+    try:
+        from config import PREFERRED_CITIES
+    except (ImportError, AttributeError):
+        PREFERRED_CITIES = []
+
     # Get all unique sources (handle None/NaN values)
     unique_sources = df['Source'].dropna().unique()
-    
+
     # Create tab name mapping for cleaner names
     tab_name_map = {
         'PG&E': 'PG&E',
@@ -346,7 +358,7 @@ def export_to_excel(filename=None):
         'Sutter Health': 'Sutter',
         'UC Davis': 'UC Davis',
     }
-    
+
     # Create Excel writer with multiple sheets
     with pd.ExcelWriter(filename, engine='openpyxl') as writer:
         # Write All Jobs tab
@@ -362,23 +374,33 @@ def export_to_excel(filename=None):
         else:
             tabs_created_top = []
 
+        # Near Me tab - jobs in preferred cities
+        tabs_created_cities = []
+        if PREFERRED_CITIES:
+            city_pattern = '|'.join(city.lower() for city in PREFERRED_CITIES)
+            df_near = df[df['Location'].fillna('').str.lower().str.contains(city_pattern, regex=True)].copy()
+            if not df_near.empty:
+                df_near.to_excel(writer, sheet_name='Near Me', index=False)
+                format_worksheet(writer.sheets['Near Me'], link_col_idx=6)
+                tabs_created_cities.append(f"Near Me ({len(df_near)})")
+
         # Create a tab for each unique source
         tabs_created = []
         for source in unique_sources:
             if pd.isna(source) or source == '':
                 continue
-                
+
             df_source = df[df['Source'] == source].copy()
             if df_source.empty:
                 continue
-            
+
             # Use mapped name or clean up the source name for tab
             tab_name = tab_name_map.get(source, source.replace(' ', '_')[:31])  # Excel tab name limit is 31 chars
             df_source.to_excel(writer, sheet_name=tab_name, index=False)
             format_worksheet(writer.sheets[tab_name], link_col_idx=6)
             tabs_created.append(f"{tab_name} ({len(df_source)})")
-    
+
     print(f"\n✅ Exported {len(df)} jobs to: {filename}")
-    tabs_list = [f"All Jobs ({len(df)})"] + tabs_created_top + tabs_created
+    tabs_list = [f"All Jobs ({len(df)})"] + tabs_created_top + tabs_created_cities + tabs_created
     print(f"   Tabs: {', '.join(tabs_list)}")
     return filename

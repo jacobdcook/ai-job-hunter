@@ -1,10 +1,39 @@
 """
-SOC Feeder Path Taxonomy
-Defines role categories and keywords for identifying SOC-adjacent/feeder roles.
+Career Path Taxonomy - Keyword-based job classification system.
+
+This file defines YOUR target career path. Jobs are classified into 4 tiers:
+
+  SOC_DIRECT    = Your dream roles (score: 100)
+  SOC_ADJACENT  = Stepping-stone roles closely related to your target (score: 60-95)
+  IT_FEEDER     = General tech roles that build foundational skills (score: 50)
+  AVOID         = Unrelated roles (score: 0, still shown but ranked lowest)
+
+HOW TO CUSTOMIZE:
+  The default setup below is for a SOC Analyst / Cybersecurity career path.
+  To adapt for YOUR career goals:
+
+  1. SOC_DIRECT_KEYWORDS → Replace with keywords for YOUR target job titles
+     Current (SOC): "soc analyst", "incident response", "threat detection"
+     DevOps example: "devops engineer", "site reliability", "platform engineer"
+     Data example:   "data scientist", "machine learning engineer", "ml ops"
+
+  2. SOC_ADJACENT → Replace categories and keywords for YOUR stepping-stone roles
+     Current (SOC): NOC_OPERATIONS, IAM_ACCESS, ENDPOINT_EDR, SIEM_LOGGING, etc.
+     DevOps example: CICD_AUTOMATION, CLOUD_INFRASTRUCTURE, CONTAINER_ORCHESTRATION
+     Data example:   DATA_ANALYTICS, ETL_PIPELINES, BUSINESS_INTELLIGENCE
+
+  3. IT_FEEDER_KEYWORDS → General tech roles (sysadmin, support, etc.) - usually
+     fine as-is since most tech careers share these foundational roles.
+
+  4. HARD_EXCLUDE_KEYWORDS → Non-tech roles to always filter out (nurse, cashier, etc.)
+
+Each SOC_ADJACENT category has a "weight" (0-100) that controls ranking priority.
+Higher weight = ranked higher in your Excel output.
 """
 
 # ============================================================================
-# SOC DIRECT - Roles that ARE the target (SOC, IR, DFIR, Threat Hunting)
+# TARGET ROLES - Roles that ARE your dream job
+# (Default: SOC Analyst / Cybersecurity. Replace with YOUR target role keywords.)
 # ============================================================================
 SOC_DIRECT_KEYWORDS = [
     "soc analyst", "security operations analyst", "security operations center",
@@ -16,7 +45,9 @@ SOC_DIRECT_KEYWORDS = [
 ]
 
 # ============================================================================
-# SOC ADJACENT - High-value feeder roles with weights
+# STEPPING-STONE ROLES - High-value roles adjacent to your target, with weights
+# (Default: SOC-adjacent categories. Replace with YOUR stepping-stone categories.)
+# Each category has a "weight" (0-100) controlling how high it ranks.
 # ============================================================================
 SOC_ADJACENT = {
     "NOC_OPERATIONS": {
@@ -93,7 +124,8 @@ SOC_ADJACENT = {
 }
 
 # ============================================================================
-# IT FEEDER - Core IT fundamentals that lead to security
+# CAREER FEEDER - Core IT/tech roles that build foundational skills
+# (These are general enough to apply to most tech career paths.)
 # ============================================================================
 IT_FEEDER_KEYWORDS = [
     "junior systems administrator", "systems administrator", "sysadmin",
@@ -103,7 +135,17 @@ IT_FEEDER_KEYWORDS = [
     "network technician", "support technician", "support specialist",
     "infrastructure analyst", "infrastructure technician",
     "windows server", "linux", "vmware", "hyper-v", "aws", "azure",
-    "cloud infrastructure", "cloud operations", "devops"
+    "cloud infrastructure", "cloud operations", "devops",
+    "data analyst", "data engineer", "database administrator", "dba",
+    "cloud engineer", "cloud analyst", "cloud administrator",
+    "information systems", "information technology",
+    "software engineer", "software developer", "web developer",
+    "it engineer", "technical analyst", "technical support",
+    "business systems analyst", "it operations",
+    "desktop analyst", "desktop engineer", "desktop support",
+    "application support", "application analyst",
+    "security engineer", "security specialist", "security administrator",
+    "compliance analyst", "audit analyst",
 ]
 
 # ============================================================================
@@ -127,7 +169,8 @@ SHIFT_KEYWORDS = [
 ]
 
 # ============================================================================
-# HARD EXCLUSIONS - Dead-end roles (filtered out unless IT context present)
+# HARD EXCLUSIONS - Non-tech roles always filtered out (unless IT context present)
+# Add/remove keywords based on your needs. If you want medical roles, remove those.
 # ============================================================================
 HARD_EXCLUDE_KEYWORDS = [
     "customer service representative", "customer service specialist",

@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 try:
     import config
     from config import SEARCH_QUERIES, NOISE_KEYWORDS, ENTRY_LEVEL_INDICATORS, ENABLED_SITES, IGNORE_FIELDS, INTEREST_KEYWORDS
-    from config import TITLE_MUST_CONTAIN, BOGUS_TITLES
+    from config import TITLE_MUST_CONTAIN, BOGUS_TITLES, SENIORITY_EXCLUDE
     from config import STATE_CA_LOCATION, STATE_CA_KEYWORDS
     from config import UCDAVIS_KEYWORDS
     from config import SUTTER_KEYWORDS
@@ -42,6 +42,7 @@ except ImportError as e:
     INTEREST_KEYWORDS = []
     TITLE_MUST_CONTAIN = ["IT", "Tech", "Security", "Cyber", "Analyst", "Engineer", "Developer", "Systems", "Network", "Data", "Software", "Support", "Customer Service", "Help Desk"]
     BOGUS_TITLES = ["train", "trained", "trainers", "trains", "rotation", "rotational"]
+    SENIORITY_EXCLUDE = ["Senior", "Sr.", "Sr ", "Principal", "Lead", "Expert", "Director", "Manager", "Supervisor", "Chief", "VP", "Vice President", "Head of", "III", "IV", "V"]
     STATE_CA_LOCATION = "Sacramento County"
     STATE_CA_KEYWORDS = ["Information", "IT", "Security", "Analyst"]
     UCDAVIS_KEYWORDS = ["IT", "Security", "Analyst", "Associate"]
@@ -116,9 +117,21 @@ def filter_jobs(jobs, save_filtered_log=True):
             })
             continue
 
+        # 1.5 Seniority hard-filter: always filter Senior/Manager/etc. regardless of interest keywords
+        matched_seniority = None
+        for seniority_kw in SENIORITY_EXCLUDE:
+            if word_match(seniority_kw, title) or seniority_kw.lower() in title_lower:
+                matched_seniority = seniority_kw
+                break
+
+        if matched_seniority:
+            filtered_out.append({
+                **job,
+                "reason": f"Filtered: '{matched_seniority}' - seniority too high for entry-level"
+            })
+            continue
+
         # 2. Check if it's in the interest area keywords (Cyber, IT, Analyst, etc.)
-        # If it's interesting, we keep it REGARDLESS of noise (Senior/Manager)
-        # because the user wants the AI to decide, not a dumb string filter.
         is_interesting = any(word_match(interest, title) for interest in INTEREST_KEYWORDS)
 
         # 3. Check if it matches an entry-level indicator
@@ -366,21 +379,21 @@ async def main():
             print("\n📍 Scraping PG&E Jobs...")
             pge_keywords = get_keywords_for_site('pge', config)
             for query in pge_keywords:
-                raw_jobs = await scrape_pge_jobs(query, headless=False)
+                raw_jobs = await scrape_pge_jobs(query, headless=True)
                 all_raw_jobs.extend(raw_jobs)
 
         # SMUD - scrape ALL categories + keyword searches in one go
         if selected_sites.get("smud", False):
             print("\n📍 Scraping SMUD Jobs (all categories + keywords)...")
             smud_keywords = get_keywords_for_site('smud', config)
-            raw_jobs = await scrape_all_smud_jobs(smud_keywords, headless=False)
+            raw_jobs = await scrape_all_smud_jobs(smud_keywords, headless=True)
             all_raw_jobs.extend(raw_jobs)
         
         # Kaiser Permanente - scrape ALL California jobs, then filter
         # (Kaiser's "View All" works properly unlike SMUD, so we get everything)
         if selected_sites.get("kaiser", False):
             print("\n📍 Scraping Kaiser Permanente Jobs (California - Full Dump)...")
-            raw_jobs = await scrape_kaiser_jobs(headless=False)
+            raw_jobs = await scrape_kaiser_jobs(headless=True)
             all_raw_jobs.extend(raw_jobs)
         
         # State of California - scrape multiple keywords with configured location
@@ -390,7 +403,7 @@ async def main():
             raw_jobs = await scrape_state_ca_jobs(
                 search_queries=state_ca_keywords,
                 location=STATE_CA_LOCATION,
-                headless=False
+                headless=True
             )
             all_raw_jobs.extend(raw_jobs)
         
@@ -400,7 +413,7 @@ async def main():
             ucdavis_keywords = get_keywords_for_site('ucdavis', config)
             raw_jobs = await scrape_ucdavis_jobs(
                 search_queries=ucdavis_keywords,
-                headless=False
+                headless=True
             )
             all_raw_jobs.extend(raw_jobs)
 
@@ -410,7 +423,7 @@ async def main():
             sutter_keywords = get_keywords_for_site('sutter', config)
             raw_jobs = await scrape_sutter_jobs(
                 search_queries=sutter_keywords,
-                headless=False
+                headless=True
             )
             all_raw_jobs.extend(raw_jobs)
 
@@ -424,7 +437,7 @@ async def main():
             raw_jobs = await scrape_commonspirit_jobs(
                 max_pages=COMMONSPIRIT_MAX_PAGES,
                 location=commonspirit_location,
-                headless=False
+                headless=True
             )
             all_raw_jobs.extend(raw_jobs)
 
@@ -455,7 +468,7 @@ async def main():
             blueshield_keywords = get_keywords_for_site('blueshield', config)
             raw_jobs = await scrape_blueshield_jobs(
                 search_queries=blueshield_keywords,
-                headless=False
+                headless=True
             )
             all_raw_jobs.extend(raw_jobs)
 
@@ -465,7 +478,7 @@ async def main():
             losrios_keywords = get_keywords_for_site('losrios', config)
             raw_jobs = await scrape_losrios_jobs(
                 search_queries=losrios_keywords,
-                headless=False
+                headless=True
             )
             all_raw_jobs.extend(raw_jobs)
 
@@ -474,7 +487,7 @@ async def main():
             print(f"\n📍 Scraping Golden 1 Credit Union Jobs...")
             raw_jobs = await scrape_golden1_jobs(
                 max_pages=GOLDEN1_MAX_PAGES,
-                headless=False
+                headless=True
             )
             all_raw_jobs.extend(raw_jobs)
 
@@ -744,7 +757,7 @@ async def main():
         
         # Fetch PG&E descriptions
         if pge_to_fetch:
-            descriptions = await fetch_pge_descriptions_batch(pge_to_fetch, headless=False)
+            descriptions = await fetch_pge_descriptions_batch(pge_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in pge_to_fetch:
@@ -756,7 +769,7 @@ async def main():
         
         # Fetch SMUD descriptions
         if smud_to_fetch:
-            descriptions = await fetch_smud_descriptions_batch(smud_to_fetch, headless=False)
+            descriptions = await fetch_smud_descriptions_batch(smud_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in smud_to_fetch:
@@ -774,7 +787,7 @@ async def main():
                 print(f"  [Kaiser] Limiting fetch to first {fetch_limit} jobs to avoid IP block...")
                 kaiser_to_fetch = kaiser_to_fetch[:fetch_limit]
                 
-            descriptions = await fetch_kaiser_descriptions_batch(kaiser_to_fetch, headless=False)
+            descriptions = await fetch_kaiser_descriptions_batch(kaiser_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in kaiser_to_fetch:
@@ -790,7 +803,7 @@ async def main():
             # State CA has rate limiting built into the scraper (10s delays)
             # So we can fetch all of them, just in batches
             print(f"  [State CA] Fetching descriptions for {len(state_ca_to_fetch)} jobs (this will take a while due to rate limiting)...")
-            descriptions, titles = await fetch_state_ca_descriptions_batch(state_ca_to_fetch, headless=False)
+            descriptions, titles = await fetch_state_ca_descriptions_batch(state_ca_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in state_ca_to_fetch:
@@ -808,7 +821,7 @@ async def main():
         if ucdavis_to_fetch:
             # UC Davis has rate limiting built into the scraper (10s delays)
             print(f"  [UC Davis] Fetching descriptions for {len(ucdavis_to_fetch)} jobs (this will take a while due to rate limiting)...")
-            descriptions = await fetch_ucdavis_descriptions_batch(ucdavis_to_fetch, headless=False)
+            descriptions = await fetch_ucdavis_descriptions_batch(ucdavis_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in ucdavis_to_fetch:
@@ -823,7 +836,7 @@ async def main():
         sutter_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Sutter Health']
         if sutter_to_fetch:
             print(f"  [Sutter] Fetching descriptions for {len(sutter_to_fetch)} jobs (pure HTTP, 3s delays)...")
-            descriptions = await fetch_sutter_descriptions_batch(sutter_to_fetch, headless=False)
+            descriptions = await fetch_sutter_descriptions_batch(sutter_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in sutter_to_fetch:
@@ -838,7 +851,7 @@ async def main():
         commonspirit_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'CommonSpirit']
         if commonspirit_to_fetch:
             print(f"  [CommonSpirit] Fetching descriptions for {len(commonspirit_to_fetch)} jobs (pure HTTP, 1s delays)...")
-            descriptions = await fetch_commonspirit_descriptions_batch(commonspirit_to_fetch, headless=False)
+            descriptions = await fetch_commonspirit_descriptions_batch(commonspirit_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in commonspirit_to_fetch:
@@ -883,7 +896,7 @@ async def main():
         blueshield_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Blue Shield of California']
         if blueshield_to_fetch:
             print(f"  [Blue Shield] Fetching descriptions for {len(blueshield_to_fetch)} jobs (Oracle Taleo, browser automation, 2-4s delays)...")
-            descriptions = await fetch_blueshield_descriptions_batch(blueshield_to_fetch, headless=False)
+            descriptions = await fetch_blueshield_descriptions_batch(blueshield_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in blueshield_to_fetch:
@@ -898,7 +911,7 @@ async def main():
         losrios_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Los Rios Community College District']
         if losrios_to_fetch:
             print(f"  [Los Rios] Fetching descriptions for {len(losrios_to_fetch)} jobs (NEOGOV, pure HTTP, 2-4s delays)...")
-            descriptions = await fetch_losrios_descriptions_batch(losrios_to_fetch, headless=False)
+            descriptions = await fetch_losrios_descriptions_batch(losrios_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in losrios_to_fetch:
@@ -913,7 +926,7 @@ async def main():
         golden1_to_fetch = [j for j in jobs_needing_desc if j.get('source') == 'Golden 1 Credit Union']
         if golden1_to_fetch:
             print(f"  [Golden 1] Fetching descriptions for {len(golden1_to_fetch)} jobs (Dayforce API, 2s delays)...")
-            descriptions = await fetch_golden1_descriptions_batch(golden1_to_fetch, headless=False)
+            descriptions = await fetch_golden1_descriptions_batch(golden1_to_fetch, headless=True)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             for job in golden1_to_fetch:
@@ -965,13 +978,15 @@ async def main():
     if not jobs_to_analyze:
         print("No NEW relevant jobs requiring AI analysis.")
     else:
-        print(f"\n🤖 Analyzing {len(jobs_to_analyze)} jobs with Groq AI (2 sec delay)...")
-        for i, job_row in enumerate(jobs_to_analyze, 1):
-            job_id, title, link, location, date, desc, score, missing, analysis, status, last_seen, source = job_row
+        BATCH_SIZE = 5
+        print(f"\n🤖 Analyzing {len(jobs_to_analyze)} jobs with Groq AI (batch of {BATCH_SIZE})...")
 
+        # Separate jobs with/without descriptions
+        analyzable = []
+        for job_row in jobs_to_analyze:
+            job_id, title, link, location, date, desc, score, missing, analysis, status, last_seen, source = job_row
             if not desc:
-                print(f"  [{i}/{len(jobs_to_analyze)}] Skipping {title} (no description)")
-                # Mark in DB so Excel shows why
+                print(f"  Skipping {title} (no description)")
                 conn_skip = sqlite3.connect(DB_NAME)
                 c_skip = conn_skip.cursor()
                 c_skip.execute("""
@@ -981,37 +996,52 @@ async def main():
                 """, (job_id,))
                 conn_skip.commit()
                 conn_skip.close()
-                continue
+            else:
+                analyzable.append(job_row)
 
-            print(f"  [{i}/{len(jobs_to_analyze)}] {title}...", end=" ", flush=True)
+        total = len(analyzable)
+        from job_classifier import classify_and_score_job
+        from database import update_job_feeder_classification
+
+        for batch_start in range(0, total, BATCH_SIZE):
+            batch = analyzable[batch_start:batch_start + BATCH_SIZE]
+            batch_titles = [(row[1], row[5]) for row in batch]  # (title, desc)
+            batch_end = min(batch_start + BATCH_SIZE, total)
+            print(f"  [{batch_start+1}-{batch_end}/{total}] Analyzing batch: {', '.join(r[1][:30] for r in batch)}...", flush=True)
+
             try:
-                score, missing_skills, brief_analysis = analyzer.analyze_job(title, desc)
-                update_job_analysis(job_id, score, missing_skills, brief_analysis)
+                results = analyzer.analyze_jobs_batch(batch_titles)
+                for idx, job_row in enumerate(batch):
+                    job_id, title = job_row[0], job_row[1]
+                    desc = job_row[5]
+                    score, missing_skills, brief_analysis = results[idx]
+                    update_job_analysis(job_id, score, missing_skills, brief_analysis)
+                    print(f"    {title[:40]}: {score}/10")
 
-                # Apply SOC feeder classification
-                try:
-                    from job_classifier import classify_and_score_job, update_job_feeder_classification
-                    classification = classify_and_score_job(title, desc, score)
-                    priority_score = classification['priority_score']
-                    update_job_feeder_classification(
-                        job_id,
-                        classification['category'],
-                        classification['feeder_score'],
-                        " | ".join(classification['reasons']),
-                        priority_score
-                    )
-                except Exception as c_err:
-                    pass  # Silently fail classification; job still has Groq score
-
-                print(f"Score: {score}/10")
+                    try:
+                        classification = classify_and_score_job(title, desc, score)
+                        update_job_feeder_classification(
+                            job_id,
+                            classification['category'],
+                            classification['feeder_score'],
+                            " | ".join(classification['reasons']),
+                            classification['priority_score']
+                        )
+                    except Exception:
+                        pass
             except Exception as e:
                 err_msg = str(e)
-                if "429" in err_msg or "rate limit" in err_msg.lower():
-                    update_job_failed_analysis(job_id, err_msg, status="rate_limited")
-                    print(f"Rate limited (will retry on ANALYZE UNANALYZED)")
+                is_rate_limit = "429" in err_msg or "rate limit" in err_msg.lower()
+                for job_row in batch:
+                    job_id = job_row[0]
+                    if is_rate_limit:
+                        update_job_failed_analysis(job_id, err_msg, status="rate_limited")
+                    else:
+                        update_job_failed_analysis(job_id, err_msg, status="failed")
+                if is_rate_limit:
+                    print(f"    Rate limited (batch marked for retry)")
                 else:
-                    update_job_failed_analysis(job_id, err_msg, status="failed")
-                    print(f"Error: {err_msg[:60]}...")
+                    print(f"    Error: {err_msg[:80]}...")
 
     # 8. Final Output - Top Recommended Matches (filtered by current run sources)
     print("\n" + "="*60)
