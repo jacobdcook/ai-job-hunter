@@ -217,6 +217,11 @@ def classify_job(title: str, description: str = "") -> dict:
             'is_shift_based': bool
         }
     """
+    import re
+
+    def _word_match(kw, text):
+        return bool(re.search(r'\b' + re.escape(kw) + r'\b', text, re.IGNORECASE))
+
     title_lower = title.lower()
     desc_lower = description.lower()
     full_text = (title + " " + description).lower()
@@ -224,9 +229,10 @@ def classify_job(title: str, description: str = "") -> dict:
     matched = []
     reasons = []
 
-    # Check for hard exclusions
+    # Check for hard exclusions - TITLE ONLY (descriptions have too much boilerplate
+    # like "accounting dept", "human resources", "security officer" in contact info)
     for keyword in HARD_EXCLUDE_KEYWORDS:
-        if keyword in title_lower or keyword in desc_lower:
+        if _word_match(keyword, title):
             # Exception: if it's IT support with IT context, don't exclude
             if "help desk" in title_lower or "it support" in title_lower or "support technician" in title_lower:
                 has_context = any(ctx in desc_lower for ctx in IT_CONTEXT_KEYWORDS)

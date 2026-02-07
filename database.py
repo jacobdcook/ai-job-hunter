@@ -257,6 +257,11 @@ def export_to_excel(filename=None):
         return None
     
     # Add priority column based on score and status
+    # Ranking order:
+    #   1. SOC_DIRECT / SOC_ADJACENT with high AI score → HIGH PRIORITY ⭐
+    #   2. Good AI matches (7+) even if not SOC-adjacent → MEDIUM PRIORITY ✅
+    #   3. Lower matches or AVOID with decent score → LOW PRIORITY 📋
+    #   4. No match → SKIP
     def get_priority(row):
         score = row['match_score']
         status = row['status']
@@ -271,17 +276,21 @@ def export_to_excel(filename=None):
             return "RATE LIMITED (retry later)"
         if pd.isna(score) or score is None:
             return "Not Analyzed"
-        # AVOID jobs capped at LOW regardless of Groq score
-        if category == 'AVOID':
-            return "LOW PRIORITY 📋" if score >= 1 else "SKIP"
-        if score >= 8:
-            return "HIGH PRIORITY ⭐"
-        elif score >= 5:
+        # Target path jobs (SOC_DIRECT, SOC_ADJACENT, IT_FEEDER) use full scoring
+        if category in ('SOC_DIRECT', 'SOC_ADJACENT', 'IT_FEEDER'):
+            if score >= 8:
+                return "HIGH PRIORITY ⭐"
+            elif score >= 5:
+                return "MEDIUM PRIORITY ✅"
+            elif score >= 1:
+                return "LOW PRIORITY 📋"
+            return "SKIP"
+        # AVOID / unclassified: still respect high AI scores (good resume match)
+        if score >= 7:
             return "MEDIUM PRIORITY ✅"
         elif score >= 1:
             return "LOW PRIORITY 📋"
-        else:
-            return "SKIP"
+        return "SKIP"
 
     df['Priority'] = df.apply(get_priority, axis=1)
 
